@@ -45,6 +45,19 @@ ast_node::ast_node(digit_int_attr attr)
     : ast_node(ast_operator_type::AST_OP_LEAF_LITERAL_UINT, IntegerType::getTypeInt(), attr.lineno)
 {
     integer_val = attr.val;
+    this->numBase = 10;      // 默认10进制
+    this->isSigned = true;   // 支持有符号数
+}
+
+/// @brief 针对64位整数字面量的构造函数
+/// @param val 64位整数值
+/// @param line_no 行号
+ast_node::ast_node(uint64_t val, int64_t line_no)
+    : ast_node(ast_operator_type::AST_OP_LEAF_LITERAL_LL, IntegerType::getTypeInt(), line_no)
+{
+    longlong_val = val;
+    this->numBase = 10;      // 默认10进制
+    this->isSigned = true;   // 支持有符号数
 }
 
 /// @brief 针对标识符ID的叶子构造函数
@@ -71,6 +84,7 @@ bool ast_node::isLeafNode()
 
     switch (this->node_type) {
         case ast_operator_type::AST_OP_LEAF_LITERAL_UINT:
+        case ast_operator_type::AST_OP_LEAF_LITERAL_LL:
         case ast_operator_type::AST_OP_LEAF_LITERAL_FLOAT:
         case ast_operator_type::AST_OP_LEAF_VAR_ID:
         case ast_operator_type::AST_OP_LEAF_TYPE:
@@ -137,6 +151,16 @@ ast_node * ast_node::insert_son_node(ast_node * node)
 ast_node * ast_node::New(digit_int_attr attr)
 {
     ast_node * node = new ast_node(attr);
+
+    return node;
+}
+
+/// @brief 创建64位整数的叶子节点
+/// @param val 64位整数值
+/// @param line_no 行号
+ast_node * ast_node::New(uint64_t val, int64_t line_no)
+{
+    ast_node * node = new ast_node(val, line_no);
 
     return node;
 }

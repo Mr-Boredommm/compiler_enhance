@@ -160,4 +160,18 @@ protected:
     /// @return std::any AST的节点
     ///
     std::any visitExpressionStatement(MiniCParser::ExpressionStatementContext * context) override;
+
+    ///
+    /// @brief 非终结符MulExp的分析
+    /// @param ctx CST上下文
+    /// @return std::any AST的节点
+    ///
+    std::any visitMulExp(MiniCParser::MulExpContext * ctx) override;
+
+    ///
+    /// @brief 非终结符MulOp的分析
+    /// @param ctx CST上下文
+    /// @return std::any 运算符类型
+    ///
+    std::any visitMulOp(MiniCParser::MulOpContext * ctx) override;
 };

@@ -44,9 +44,13 @@ IRGenerator::IRGenerator(ast_node * _root, Module * _module) : root(_root), modu
     ast2ir_handlers[ast_operator_type::AST_OP_LEAF_VAR_ID] = &IRGenerator::ir_leaf_node_var_id;
     ast2ir_handlers[ast_operator_type::AST_OP_LEAF_TYPE] = &IRGenerator::ir_leaf_node_type;
 
-    /* 表达式运算， 加减 */
+    /* 表达式运算 */
     ast2ir_handlers[ast_operator_type::AST_OP_SUB] = &IRGenerator::ir_sub;
     ast2ir_handlers[ast_operator_type::AST_OP_ADD] = &IRGenerator::ir_add;
+    ast2ir_handlers[ast_operator_type::AST_OP_MUL] = &IRGenerator::ir_mul;
+    ast2ir_handlers[ast_operator_type::AST_OP_DIV] = &IRGenerator::ir_div;
+    ast2ir_handlers[ast_operator_type::AST_OP_MOD] = &IRGenerator::ir_mod;
+    ast2ir_handlers[ast_operator_type::AST_OP_NEG] = &IRGenerator::ir_neg;
 
     /* 语句 */
     ast2ir_handlers[ast_operator_type::AST_OP_ASSIGN] = &IRGenerator::ir_assign;
@@ -455,6 +459,159 @@ bool IRGenerator::ir_sub(ast_node * node)
     return true;
 }
 
+/// @brief 整数乘法AST节点翻译成线性中间IR
+/// @param node AST节点
+/// @return 翻译是否成功，true：成功，false：失败
+bool IRGenerator::ir_mul(ast_node * node)
+{
+    ast_node * src1_node = node->sons[0];
+    ast_node * src2_node = node->sons[1];
+
+    // 乘法节点，左结合，先计算左节点，后计算右节点
+
+    // 乘法的左边操作数
+    ast_node * left = ir_visit_ast_node(src1_node);
+    if (!left) {
+        // 某个变量没有定值
+        return false;
+    }
+
+    // 乘法的右边操作数
+    ast_node * right = ir_visit_ast_node(src2_node);
+    if (!right) {
+        // 某个变量没有定值
+        return false;
+    }
+
+    BinaryInstruction * mulInst = new BinaryInstruction(module->getCurrentFunction(),
+                                                        IRInstOperator::IRINST_OP_MUL_I,
+                                                        left->val,
+                                                        right->val,
+                                                        IntegerType::getTypeInt());
+
+    // 创建临时变量保存IR的值，以及线性IR指令
+    node->blockInsts.addInst(left->blockInsts);
+    node->blockInsts.addInst(right->blockInsts);
+    node->blockInsts.addInst(mulInst);
+
+    node->val = mulInst;
+
+    return true;
+}
+
+/// @brief 整数除法AST节点翻译成线性中间IR
+/// @param node AST节点
+/// @return 翻译是否成功，true：成功，false：失败
+bool IRGenerator::ir_div(ast_node * node)
+{
+    ast_node * src1_node = node->sons[0];
+    ast_node * src2_node = node->sons[1];
+
+    // 除法节点，左结合，先计算左节点，后计算右节点
+
+    // 除法的左边操作数
+    ast_node * left = ir_visit_ast_node(src1_node);
+    if (!left) {
+        // 某个变量没有定值
+        return false;
+    }
+
+    // 除法的右边操作数
+    ast_node * right = ir_visit_ast_node(src2_node);
+    if (!right) {
+        // 某个变量没有定值
+        return false;
+    }
+
+    BinaryInstruction * divInst = new BinaryInstruction(module->getCurrentFunction(),
+                                                        IRInstOperator::IRINST_OP_DIV_I,
+                                                        left->val,
+                                                        right->val,
+                                                        IntegerType::getTypeInt());
+
+    // 创建临时变量保存IR的值，以及线性IR指令
+    node->blockInsts.addInst(left->blockInsts);
+    node->blockInsts.addInst(right->blockInsts);
+    node->blockInsts.addInst(divInst);
+
+    node->val = divInst;
+
+    return true;
+}
+
+/// @brief 整数取模AST节点翻译成线性中间IR
+/// @param node AST节点
+/// @return 翻译是否成功，true：成功，false：失败
+bool IRGenerator::ir_mod(ast_node * node)
+{
+    ast_node * src1_node = node->sons[0];
+    ast_node * src2_node = node->sons[1];
+
+    // 取模节点，左结合，先计算左节点，后计算右节点
+
+    // 取模的左边操作数
+    ast_node * left = ir_visit_ast_node(src1_node);
+    if (!left) {
+        // 某个变量没有定值
+        return false;
+    }
+
+    // 取模的右边操作数
+    ast_node * right = ir_visit_ast_node(src2_node);
+    if (!right) {
+        // 某个变量没有定值
+        return false;
+    }
+
+    BinaryInstruction * modInst = new BinaryInstruction(module->getCurrentFunction(),
+                                                        IRInstOperator::IRINST_OP_MOD_I,
+                                                        left->val,
+                                                        right->val,
+                                                        IntegerType::getTypeInt());
+
+    // 创建临时变量保存IR的值，以及线性IR指令
+    node->blockInsts.addInst(left->blockInsts);
+    node->blockInsts.addInst(right->blockInsts);
+    node->blockInsts.addInst(modInst);
+
+    node->val = modInst;
+
+    return true;
+}
+
+/// @brief 负号运算AST节点翻译成线性中间IR
+/// @param node AST节点
+/// @return 翻译是否成功，true：成功，false：失败
+bool IRGenerator::ir_neg(ast_node * node)
+{
+    // 负号是单目运算符，只有一个操作数
+    ast_node * src_node = node->sons[0];
+
+    // 计算操作数
+    ast_node * operand = ir_visit_ast_node(src_node);
+    if (!operand) {
+        // 某个变量没有定值
+        return false;
+    }
+
+    // 创建0常量作为被减数
+    ConstInt * zero = module->newConstInt(0);
+    
+    BinaryInstruction * negInst = new BinaryInstruction(module->getCurrentFunction(),
+                                                      IRInstOperator::IRINST_OP_SUB_I,
+                                                      zero,
+                                                      operand->val,
+                                                      IntegerType::getTypeInt());
+
+    // 创建临时变量保存IR的值，以及线性IR指令
+    node->blockInsts.addInst(operand->blockInsts);
+    node->blockInsts.addInst(negInst);
+
+    node->val = negInst;
+
+    return true;
+}
+
 /// @brief 赋值AST节点翻译成线性中间IR
 /// @param node AST节点
 /// @return 翻译是否成功，true：成功，false：失败
@@ -573,9 +730,26 @@ bool IRGenerator::ir_leaf_node_var_id(ast_node * node)
 bool IRGenerator::ir_leaf_node_uint(ast_node * node)
 {
     ConstInt * val;
+    int32_t intValue = 0;
+
+    // 根据numBase判断进制
+    switch (node->numBase) {
+        case 8:
+            // 八进制
+            intValue = (int32_t) node->integer_val;
+            break;
+        case 16:
+            // 十六进制
+            intValue = (int32_t) node->integer_val;
+            break;
+        default:
+            // 十进制
+            intValue = (int32_t) node->integer_val;
+            break;
+    }
 
     // 新建一个整数常量Value
-    val = module->newConstInt((int32_t) node->integer_val);
+    val = module->newConstInt(intValue);
 
     node->val = val;
 

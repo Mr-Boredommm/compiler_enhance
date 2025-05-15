@@ -36,7 +36,10 @@ enum class ast_operator_type : int {
     /// @brief 无符号整数字面量叶子节点
     AST_OP_LEAF_LITERAL_UINT,
 
-    /// @brief  浮点数字面量叶子节点
+    /// @brief 64位整数字面量叶子节点
+    AST_OP_LEAF_LITERAL_LL,
+
+    /// @brief 浮点数字面量叶子节点
     AST_OP_LEAF_LITERAL_FLOAT,
 
     /// @brief 变量ID叶子节点
@@ -86,10 +89,20 @@ enum class ast_operator_type : int {
     /// @brief 二元运算符+
     AST_OP_ADD,
 
-    /// @brief 二元运算符*
-    AST_OP_SUB, //
+    /// @brief 二元运算符-
+    AST_OP_SUB,
 
-    // TODO 抽象语法树其它内部节点运算符追加
+    /// @brief 二元运算符*
+    AST_OP_MUL,
+
+    /// @brief 二元运算符/
+    AST_OP_DIV,
+
+    /// @brief 二元运算符% (取模)
+    AST_OP_MOD,
+
+    /// @brief 一元运算符- (负号)
+    AST_OP_NEG,
 
     /// @brief 最大标识符，表示非法运算符
     AST_OP_MAX,
@@ -112,8 +125,17 @@ public:
     /// @brief 无符号整数字面量值
     uint32_t integer_val;
 
+    /// @brief 64位整数字面量值
+    uint64_t longlong_val;
+
     /// @brief float类型字面量值
     float float_val;
+
+    /// @brief 数字的进制基数(10/8/16等)
+    int numBase;
+
+    /// @brief 数字是否有符号
+    bool isSigned;
 
     /// @brief 变量名，或者函数名
     std::string name;
@@ -147,6 +169,11 @@ public:
     /// @param attr 无符号整数字面量
     ast_node(digit_int_attr attr);
 
+    /// @brief 针对64位整数字面量的构造函数
+    /// @param val 64位整数值
+    /// @param line_no 行号
+    ast_node(uint64_t val, int64_t line_no);
+
     /// @brief 针对标识符ID的叶子构造函数
     /// @param attr 字符型标识符
     ast_node(var_id_attr attr);
@@ -176,6 +203,11 @@ public:
     /// @param val 词法值
     /// @param line_no 行号
     static ast_node * New(digit_int_attr attr);
+
+    /// @brief 创建64位整数的叶子节点
+    /// @param val 64位整数值
+    /// @param line_no 行号
+    static ast_node * New(uint64_t val, int64_t line_no);
 
     /// @brief 创建标识符的叶子节点
     /// @param val 词法值

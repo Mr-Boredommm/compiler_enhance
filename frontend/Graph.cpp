@@ -33,15 +33,23 @@ string getNodeName(ast_node * astnode)
     string nodeName;
 
     switch (astnode->node_type) {
-        case ast_operator_type::AST_OP_LEAF_LITERAL_UINT:
-            nodeName = to_string((int32_t) astnode->integer_val);
-            break;
-        case ast_operator_type::AST_OP_LEAF_LITERAL_FLOAT:
-            nodeName = to_string(astnode->float_val);
-            break;
-        case ast_operator_type::AST_OP_LEAF_VAR_ID:
-            nodeName = astnode->name;
-            break;
+    case ast_operator_type::AST_OP_LEAF_LITERAL_UINT:
+        if (astnode->numBase == 8) {
+            nodeName = "OCT: 0" + to_string(astnode->integer_val);
+        } else if (astnode->numBase == 16) {
+            char buf[32];
+            snprintf(buf, sizeof(buf), "HEX: 0x%X", astnode->integer_val);
+            nodeName = buf;
+        } else {
+            nodeName = "UINT: " + to_string(astnode->integer_val);
+        }
+        break;
+    case ast_operator_type::AST_OP_LEAF_LITERAL_FLOAT:
+        nodeName = "FLOAT: " + to_string(astnode->float_val);
+        break;
+    case ast_operator_type::AST_OP_LEAF_VAR_ID:
+        nodeName = "ID: " + astnode->name;
+        break;
         case ast_operator_type::AST_OP_LEAF_TYPE:
             nodeName = astnode->type->toString();
             break;
@@ -72,6 +80,18 @@ string getNodeName(ast_node * astnode)
         case ast_operator_type::AST_OP_SUB:
             nodeName = "-";
             break;
+        case ast_operator_type::AST_OP_MUL:
+            nodeName = "*";
+            break;
+        case ast_operator_type::AST_OP_DIV:
+            nodeName = "/";
+            break;
+        case ast_operator_type::AST_OP_MOD:
+            nodeName = "%";
+            break;
+        case ast_operator_type::AST_OP_NEG:
+            nodeName = "- (unary)";
+            break;
         case ast_operator_type::AST_OP_ASSIGN:
             nodeName = "=";
             break;
@@ -81,7 +101,6 @@ string getNodeName(ast_node * astnode)
         case ast_operator_type::AST_OP_FUNC_REAL_PARAMS:
             nodeName = "real-params";
             break;
-            // TODO 这里追加其它类型的结点，返回对应结点的字符串
 
         default:
             nodeName = "unknown";
