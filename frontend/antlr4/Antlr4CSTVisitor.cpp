@@ -160,6 +160,10 @@ std::any MiniCCSTVisitor::visitStatement(MiniCParser::StatementContext * ctx)
     // 识别的文法产生式：statement: T_ID T_ASSIGN expr T_SEMICOLON  # assignStatement
     // | T_RETURN expr T_SEMICOLON # returnStatement
     // | block  # blockStatement
+    // | T_IF T_L_PAREN expr T_R_PAREN statement (T_ELSE statement)?	# ifStatement
+    // | T_WHILE T_L_PAREN expr T_R_PAREN statement				# whileStatement
+    // | T_BREAK T_SEMICOLON				# breakStatement
+    // | T_CONTINUE T_SEMICOLON			# continueStatement
     // | expr ? T_SEMICOLON #expressionStatement;
     if (Instanceof(assignCtx, MiniCParser::AssignStatementContext *, ctx)) {
         return visitAssignStatement(assignCtx);
@@ -167,6 +171,14 @@ std::any MiniCCSTVisitor::visitStatement(MiniCParser::StatementContext * ctx)
         return visitReturnStatement(returnCtx);
     } else if (Instanceof(blockCtx, MiniCParser::BlockStatementContext *, ctx)) {
         return visitBlockStatement(blockCtx);
+    } else if (Instanceof(ifCtx, MiniCParser::IfStatementContext *, ctx)) {
+        return visitIfStatement(ifCtx);
+    } else if (Instanceof(whileCtx, MiniCParser::WhileStatementContext *, ctx)) {
+        return visitWhileStatement(whileCtx);
+    } else if (Instanceof(breakCtx, MiniCParser::BreakStatementContext *, ctx)) {
+        return visitBreakStatement(breakCtx);
+    } else if (Instanceof(continueCtx, MiniCParser::ContinueStatementContext *, ctx)) {
+        return visitContinueStatement(continueCtx);
     } else if (Instanceof(exprCtx, MiniCParser::ExpressionStatementContext *, ctx)) {
         return visitExpressionStatement(exprCtx);
     }
@@ -193,9 +205,9 @@ std::any MiniCCSTVisitor::visitReturnStatement(MiniCParser::ReturnStatementConte
 /// @param ctx CST上下文
 std::any MiniCCSTVisitor::visitExpr(MiniCParser::ExprContext * ctx)
 {
-    // 识别产生式：expr: addExp;
+    // 识别产生式：expr: logicalOrExp;
 
-    return visitAddExp(ctx->addExp());
+    return visitLogicalOrExp(ctx->logicalOrExp());
 }
 
 std::any MiniCCSTVisitor::visitAssignStatement(MiniCParser::AssignStatementContext * ctx)
@@ -310,12 +322,16 @@ std::any MiniCCSTVisitor::visitUnaryExp(MiniCParser::UnaryExpContext * ctx)
         return create_func_call(funcname_node, paramListNode);
     }
 
-    // 处理负号表达式(支持递归)
-    ast_node *primary;
+    // 处理一元表达式
+    ast_node * primary;
     if (ctx->T_SUB()) {
-        // 递归处理unaryExp
+        // 递归处理负号表达式
         primary = std::any_cast<ast_node *>(visitUnaryExp(ctx->unaryExp()));
         primary = create_contain_node(ast_operator_type::AST_OP_NEG, primary, nullptr, nullptr);
+    } else if (ctx->T_NOT()) {
+        // 递归处理逻辑非表达式
+        primary = std::any_cast<ast_node *>(visitUnaryExp(ctx->unaryExp()));
+        primary = create_contain_node(ast_operator_type::AST_OP_LOGICAL_NOT, primary, nullptr, nullptr);
     } else {
         primary = std::any_cast<ast_node *>(visitPrimaryExp(ctx->primaryExp()));
     }
@@ -332,7 +348,7 @@ std::any MiniCCSTVisitor::visitPrimaryExp(MiniCParser::PrimaryExpContext * ctx)
         // 数字字面量(支持8/10/16进制)
         std::string text = ctx->T_DIGIT() ? ctx->T_DIGIT()->getText() : ctx->T_DIGIT_LL()->getText();
         bool isLongLong = ctx->T_DIGIT_LL() != nullptr;
-        
+
         if (isLongLong) {
             // 处理64位整数
             uint64_t val;
@@ -340,17 +356,16 @@ std::any MiniCCSTVisitor::visitPrimaryExp(MiniCParser::PrimaryExpContext * ctx)
                 if (text.find("0x") == 0 || text.find("0X") == 0) {
                     val = std::stoull(text.substr(2), nullptr, 16); // 去掉0x前缀和L后缀
                 } else if (text[0] == '0') {
-                    val = std::stoull(text.substr(1), nullptr, 8); // 去掉0前缀和L后缀 
+                    val = std::stoull(text.substr(1), nullptr, 8); // 去掉0前缀和L后缀
                 } else {
-                    val = std::stoull(text.substr(0, text.size()-1), nullptr, 10); // 去掉L后缀
+                    val = std::stoull(text.substr(0, text.size() - 1), nullptr, 10); // 去掉L后缀
                 }
-            } catch (const std::exception& e) {
+            } catch (const std::exception & e) {
                 val = 0;
-                std::cerr << "Invalid number format at line " 
-                          << ctx->T_DIGIT_LL()->getSymbol()->getLine()
-                          << ": " << text << std::endl;
+                std::cerr << "Invalid number format at line " << ctx->T_DIGIT_LL()->getSymbol()->getLine() << ": "
+                          << text << std::endl;
             }
-            node = ast_node::New(val, (int64_t)ctx->T_DIGIT_LL()->getSymbol()->getLine());
+            node = ast_node::New(val, (int64_t) ctx->T_DIGIT_LL()->getSymbol()->getLine());
         } else {
             // 处理32位整数
             digit_int_attr attr;
@@ -362,23 +377,20 @@ std::any MiniCCSTVisitor::visitPrimaryExp(MiniCParser::PrimaryExpContext * ctx)
                 } else {
                     attr.val = std::stoul(text);
                 }
-            } catch (const std::invalid_argument& e) {
+            } catch (const std::invalid_argument & e) {
                 attr.val = 0;
-                std::cerr << "Invalid number format at line " 
-                          << ctx->T_DIGIT()->getSymbol()->getLine()
-                          << ": " << text << std::endl;
-            } catch (const std::out_of_range& e) {
+                std::cerr << "Invalid number format at line " << ctx->T_DIGIT()->getSymbol()->getLine() << ": " << text
+                          << std::endl;
+            } catch (const std::out_of_range & e) {
                 attr.val = 0;
-                std::cerr << "Number out of range at line "
-                          << ctx->T_DIGIT()->getSymbol()->getLine()
-                          << ": " << text << std::endl;
+                std::cerr << "Number out of range at line " << ctx->T_DIGIT()->getSymbol()->getLine() << ": " << text
+                          << std::endl;
             }
             attr.lineno = (int64_t) ctx->T_DIGIT()->getSymbol()->getLine();
             if (attr.val > INT32_MAX) {
                 attr.val = INT32_MAX;
-                std::cerr << "Warning: Number overflow at line " 
-                          << ctx->T_DIGIT()->getSymbol()->getLine()
-                          << ": " << text << std::endl;
+                std::cerr << "Warning: Number overflow at line " << ctx->T_DIGIT()->getSymbol()->getLine() << ": "
+                          << text << std::endl;
             }
             node = ast_node::New(attr);
         }
@@ -488,4 +500,199 @@ std::any MiniCCSTVisitor::visitExpressionStatement(MiniCParser::ExpressionStatem
         // 直接返回空指针，需要再把语句加入到语句块时要注意判断，空语句不要加入
         return nullptr;
     }
+}
+
+/// @brief 非终结符LogicalOrExp的分析
+/// @param ctx CST上下文
+std::any MiniCCSTVisitor::visitLogicalOrExp(MiniCParser::LogicalOrExpContext * ctx)
+{
+    // 识别的文法产生式：logicalOrExp: logicalAndExp (T_OR logicalAndExp)*;
+
+    if (ctx->T_OR().empty()) {
+        return visitLogicalAndExp(ctx->logicalAndExp()[0]);
+    }
+
+    ast_node *left, *right;
+    auto opsCtxVec = ctx->T_OR();
+
+    for (int k = 0; k < (int) opsCtxVec.size(); k++) {
+        if (k == 0) {
+            left = std::any_cast<ast_node *>(visitLogicalAndExp(ctx->logicalAndExp()[k]));
+        }
+
+        right = std::any_cast<ast_node *>(visitLogicalAndExp(ctx->logicalAndExp()[k + 1]));
+
+        left = ast_node::New(ast_operator_type::AST_OP_LOGICAL_OR, left, right, nullptr);
+    }
+
+    return left;
+}
+
+/// @brief 非终结符LogicalAndExp的分析
+/// @param ctx CST上下文
+std::any MiniCCSTVisitor::visitLogicalAndExp(MiniCParser::LogicalAndExpContext * ctx)
+{
+    // 识别的文法产生式：logicalAndExp: equalityExp (T_AND equalityExp)*;
+
+    if (ctx->T_AND().empty()) {
+        return visitEqualityExp(ctx->equalityExp()[0]);
+    }
+
+    ast_node *left, *right;
+    auto opsCtxVec = ctx->T_AND();
+
+    for (int k = 0; k < (int) opsCtxVec.size(); k++) {
+        if (k == 0) {
+            left = std::any_cast<ast_node *>(visitEqualityExp(ctx->equalityExp()[k]));
+        }
+
+        right = std::any_cast<ast_node *>(visitEqualityExp(ctx->equalityExp()[k + 1]));
+
+        left = ast_node::New(ast_operator_type::AST_OP_LOGICAL_AND, left, right, nullptr);
+    }
+
+    return left;
+}
+
+/// @brief 非终结符EqualityExp的分析
+/// @param ctx CST上下文
+std::any MiniCCSTVisitor::visitEqualityExp(MiniCParser::EqualityExpContext * ctx)
+{
+    // 识别的文法产生式：equalityExp: relationalExp (equalityOp relationalExp)*;
+
+    if (ctx->equalityOp().empty()) {
+        return visitRelationalExp(ctx->relationalExp()[0]);
+    }
+
+    ast_node *left, *right;
+    auto opsCtxVec = ctx->equalityOp();
+
+    for (int k = 0; k < (int) opsCtxVec.size(); k++) {
+        ast_operator_type op = std::any_cast<ast_operator_type>(visitEqualityOp(opsCtxVec[k]));
+
+        if (k == 0) {
+            left = std::any_cast<ast_node *>(visitRelationalExp(ctx->relationalExp()[k]));
+        }
+
+        right = std::any_cast<ast_node *>(visitRelationalExp(ctx->relationalExp()[k + 1]));
+
+        left = ast_node::New(op, left, right, nullptr);
+    }
+
+    return left;
+}
+
+/// @brief 非终结符EqualityOp的分析
+/// @param ctx CST上下文
+std::any MiniCCSTVisitor::visitEqualityOp(MiniCParser::EqualityOpContext * ctx)
+{
+    if (ctx->T_EQ()) {
+        return ast_operator_type::AST_OP_EQ;
+    } else if (ctx->T_NE()) {
+        return ast_operator_type::AST_OP_NE;
+    }
+    // 默认返回等于运算符
+    return ast_operator_type::AST_OP_EQ;
+}
+
+/// @brief 非终结符RelationalExp的分析
+/// @param ctx CST上下文
+std::any MiniCCSTVisitor::visitRelationalExp(MiniCParser::RelationalExpContext * ctx)
+{
+    // 识别的文法产生式：relationalExp: addExp (relationalOp addExp)*;
+
+    if (ctx->relationalOp().empty()) {
+        return visitAddExp(ctx->addExp()[0]);
+    }
+
+    ast_node *left, *right;
+    auto opsCtxVec = ctx->relationalOp();
+
+    for (int k = 0; k < (int) opsCtxVec.size(); k++) {
+        ast_operator_type op = std::any_cast<ast_operator_type>(visitRelationalOp(opsCtxVec[k]));
+
+        if (k == 0) {
+            left = std::any_cast<ast_node *>(visitAddExp(ctx->addExp()[k]));
+        }
+
+        right = std::any_cast<ast_node *>(visitAddExp(ctx->addExp()[k + 1]));
+
+        left = ast_node::New(op, left, right, nullptr);
+    }
+
+    return left;
+}
+
+/// @brief 非终结符RelationalOp的分析
+/// @param ctx CST上下文
+std::any MiniCCSTVisitor::visitRelationalOp(MiniCParser::RelationalOpContext * ctx)
+{
+    if (ctx->T_LT()) {
+        return ast_operator_type::AST_OP_LT;
+    } else if (ctx->T_GT()) {
+        return ast_operator_type::AST_OP_GT;
+    } else if (ctx->T_LE()) {
+        return ast_operator_type::AST_OP_LE;
+    } else if (ctx->T_GE()) {
+        return ast_operator_type::AST_OP_GE;
+    }
+    // 默认返回小于运算符
+    return ast_operator_type::AST_OP_LT;
+}
+
+/// @brief 非终结符IfStatement的分析
+/// @param ctx CST上下文
+std::any MiniCCSTVisitor::visitIfStatement(MiniCParser::IfStatementContext * ctx)
+{
+    // 识别文法产生式：T_IF T_L_PAREN expr T_R_PAREN statement (T_ELSE statement)?
+
+    // 条件表达式
+    auto condExpr = std::any_cast<ast_node *>(visitExpr(ctx->expr()));
+
+    // 条件为真时执行的语句
+    auto thenStmt = std::any_cast<ast_node *>(visitStatement(ctx->statement(0)));
+
+    if (ctx->T_ELSE()) {
+        // 含有else分支的if语句
+        auto elseStmt = std::any_cast<ast_node *>(visitStatement(ctx->statement(1)));
+        return ast_node::New(ast_operator_type::AST_OP_IF_ELSE, condExpr, thenStmt, elseStmt, nullptr);
+    } else {
+        // 不含else分支的if语句
+        return ast_node::New(ast_operator_type::AST_OP_IF, condExpr, thenStmt, nullptr);
+    }
+}
+
+/// @brief 非终结符WhileStatement的分析
+/// @param ctx CST上下文
+std::any MiniCCSTVisitor::visitWhileStatement(MiniCParser::WhileStatementContext * ctx)
+{
+    // 识别文法产生式：T_WHILE T_L_PAREN expr T_R_PAREN statement
+
+    // 循环条件表达式
+    auto condExpr = std::any_cast<ast_node *>(visitExpr(ctx->expr()));
+
+    // 循环体语句
+    auto bodyStmt = std::any_cast<ast_node *>(visitStatement(ctx->statement()));
+
+    return ast_node::New(ast_operator_type::AST_OP_WHILE, condExpr, bodyStmt, nullptr);
+}
+
+/// @brief 非终结符BreakStatement的分析
+/// @param ctx CST上下文
+std::any MiniCCSTVisitor::visitBreakStatement(MiniCParser::BreakStatementContext * ctx)
+{
+    // 识别文法产生式：T_BREAK T_SEMICOLON
+
+    // 创建break语句节点，无子节点
+    return ast_node::New(ast_operator_type::AST_OP_BREAK);
+}
+
+/// @brief 非终结符ContinueStatement的分析
+/// @param ctx CST上下文
+std::any MiniCCSTVisitor::visitContinueStatement(MiniCParser::ContinueStatementContext * ctx)
+{
+    // 识别文法产生式：T_CONTINUE T_SEMICOLON
+
+    // 创建continue语句节点，无子节点
+    return ast_node::New(ast_operator_type::AST_OP_CONTINUE);
 }

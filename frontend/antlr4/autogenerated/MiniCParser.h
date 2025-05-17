@@ -14,16 +14,19 @@ public:
   enum {
     T_L_PAREN = 1, T_R_PAREN = 2, T_SEMICOLON = 3, T_L_BRACE = 4, T_R_BRACE = 5, 
     T_ASSIGN = 6, T_COMMA = 7, T_ADD = 8, T_SUB = 9, T_MUL = 10, T_DIV = 11, 
-    T_MOD = 12, T_RETURN = 13, T_INT = 14, T_VOID = 15, T_ID = 16, T_DIGIT_LL = 17, 
-    T_DIGIT = 18, LINE_COMMENT = 19, WS = 20
+    T_MOD = 12, T_LT = 13, T_GT = 14, T_LE = 15, T_GE = 16, T_EQ = 17, T_NE = 18, 
+    T_AND = 19, T_OR = 20, T_NOT = 21, T_IF = 22, T_ELSE = 23, T_WHILE = 24, 
+    T_BREAK = 25, T_CONTINUE = 26, T_RETURN = 27, T_INT = 28, T_VOID = 29, 
+    T_ID = 30, T_DIGIT_LL = 31, T_DIGIT = 32, LINE_COMMENT = 33, WS = 34
   };
 
   enum {
     RuleCompileUnit = 0, RuleFuncDef = 1, RuleBlock = 2, RuleBlockItemList = 3, 
     RuleBlockItem = 4, RuleVarDecl = 5, RuleBasicType = 6, RuleVarDef = 7, 
-    RuleStatement = 8, RuleExpr = 9, RuleAddExp = 10, RuleAddOp = 11, RuleMulExp = 12, 
-    RuleMulOp = 13, RuleUnaryExp = 14, RulePrimaryExp = 15, RuleRealParamList = 16, 
-    RuleLVal = 17
+    RuleStatement = 8, RuleExpr = 9, RuleLogicalOrExp = 10, RuleLogicalAndExp = 11, 
+    RuleEqualityExp = 12, RuleEqualityOp = 13, RuleRelationalExp = 14, RuleRelationalOp = 15, 
+    RuleAddExp = 16, RuleAddOp = 17, RuleMulExp = 18, RuleMulOp = 19, RuleUnaryExp = 20, 
+    RulePrimaryExp = 21, RuleRealParamList = 22, RuleLVal = 23
   };
 
   explicit MiniCParser(antlr4::TokenStream *input);
@@ -53,6 +56,12 @@ public:
   class VarDefContext;
   class StatementContext;
   class ExprContext;
+  class LogicalOrExpContext;
+  class LogicalAndExpContext;
+  class EqualityExpContext;
+  class EqualityOpContext;
+  class RelationalExpContext;
+  class RelationalOpContext;
   class AddExpContext;
   class AddOpContext;
   class MulExpContext;
@@ -196,6 +205,19 @@ public:
    
   };
 
+  class  WhileStatementContext : public StatementContext {
+  public:
+    WhileStatementContext(StatementContext *ctx);
+
+    antlr4::tree::TerminalNode *T_WHILE();
+    antlr4::tree::TerminalNode *T_L_PAREN();
+    ExprContext *expr();
+    antlr4::tree::TerminalNode *T_R_PAREN();
+    StatementContext *statement();
+
+    virtual std::any accept(antlr4::tree::ParseTreeVisitor *visitor) override;
+  };
+
   class  BlockStatementContext : public StatementContext {
   public:
     BlockStatementContext(StatementContext *ctx);
@@ -212,6 +234,26 @@ public:
     LValContext *lVal();
     antlr4::tree::TerminalNode *T_ASSIGN();
     ExprContext *expr();
+    antlr4::tree::TerminalNode *T_SEMICOLON();
+
+    virtual std::any accept(antlr4::tree::ParseTreeVisitor *visitor) override;
+  };
+
+  class  BreakStatementContext : public StatementContext {
+  public:
+    BreakStatementContext(StatementContext *ctx);
+
+    antlr4::tree::TerminalNode *T_BREAK();
+    antlr4::tree::TerminalNode *T_SEMICOLON();
+
+    virtual std::any accept(antlr4::tree::ParseTreeVisitor *visitor) override;
+  };
+
+  class  ContinueStatementContext : public StatementContext {
+  public:
+    ContinueStatementContext(StatementContext *ctx);
+
+    antlr4::tree::TerminalNode *T_CONTINUE();
     antlr4::tree::TerminalNode *T_SEMICOLON();
 
     virtual std::any accept(antlr4::tree::ParseTreeVisitor *visitor) override;
@@ -238,13 +280,28 @@ public:
     virtual std::any accept(antlr4::tree::ParseTreeVisitor *visitor) override;
   };
 
+  class  IfStatementContext : public StatementContext {
+  public:
+    IfStatementContext(StatementContext *ctx);
+
+    antlr4::tree::TerminalNode *T_IF();
+    antlr4::tree::TerminalNode *T_L_PAREN();
+    ExprContext *expr();
+    antlr4::tree::TerminalNode *T_R_PAREN();
+    std::vector<StatementContext *> statement();
+    StatementContext* statement(size_t i);
+    antlr4::tree::TerminalNode *T_ELSE();
+
+    virtual std::any accept(antlr4::tree::ParseTreeVisitor *visitor) override;
+  };
+
   StatementContext* statement();
 
   class  ExprContext : public antlr4::ParserRuleContext {
   public:
     ExprContext(antlr4::ParserRuleContext *parent, size_t invokingState);
     virtual size_t getRuleIndex() const override;
-    AddExpContext *addExp();
+    LogicalOrExpContext *logicalOrExp();
 
 
     virtual std::any accept(antlr4::tree::ParseTreeVisitor *visitor) override;
@@ -252,6 +309,100 @@ public:
   };
 
   ExprContext* expr();
+
+  class  LogicalOrExpContext : public antlr4::ParserRuleContext {
+  public:
+    LogicalOrExpContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    virtual size_t getRuleIndex() const override;
+    std::vector<LogicalAndExpContext *> logicalAndExp();
+    LogicalAndExpContext* logicalAndExp(size_t i);
+    std::vector<antlr4::tree::TerminalNode *> T_OR();
+    antlr4::tree::TerminalNode* T_OR(size_t i);
+
+
+    virtual std::any accept(antlr4::tree::ParseTreeVisitor *visitor) override;
+   
+  };
+
+  LogicalOrExpContext* logicalOrExp();
+
+  class  LogicalAndExpContext : public antlr4::ParserRuleContext {
+  public:
+    LogicalAndExpContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    virtual size_t getRuleIndex() const override;
+    std::vector<EqualityExpContext *> equalityExp();
+    EqualityExpContext* equalityExp(size_t i);
+    std::vector<antlr4::tree::TerminalNode *> T_AND();
+    antlr4::tree::TerminalNode* T_AND(size_t i);
+
+
+    virtual std::any accept(antlr4::tree::ParseTreeVisitor *visitor) override;
+   
+  };
+
+  LogicalAndExpContext* logicalAndExp();
+
+  class  EqualityExpContext : public antlr4::ParserRuleContext {
+  public:
+    EqualityExpContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    virtual size_t getRuleIndex() const override;
+    std::vector<RelationalExpContext *> relationalExp();
+    RelationalExpContext* relationalExp(size_t i);
+    std::vector<EqualityOpContext *> equalityOp();
+    EqualityOpContext* equalityOp(size_t i);
+
+
+    virtual std::any accept(antlr4::tree::ParseTreeVisitor *visitor) override;
+   
+  };
+
+  EqualityExpContext* equalityExp();
+
+  class  EqualityOpContext : public antlr4::ParserRuleContext {
+  public:
+    EqualityOpContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    virtual size_t getRuleIndex() const override;
+    antlr4::tree::TerminalNode *T_EQ();
+    antlr4::tree::TerminalNode *T_NE();
+
+
+    virtual std::any accept(antlr4::tree::ParseTreeVisitor *visitor) override;
+   
+  };
+
+  EqualityOpContext* equalityOp();
+
+  class  RelationalExpContext : public antlr4::ParserRuleContext {
+  public:
+    RelationalExpContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    virtual size_t getRuleIndex() const override;
+    std::vector<AddExpContext *> addExp();
+    AddExpContext* addExp(size_t i);
+    std::vector<RelationalOpContext *> relationalOp();
+    RelationalOpContext* relationalOp(size_t i);
+
+
+    virtual std::any accept(antlr4::tree::ParseTreeVisitor *visitor) override;
+   
+  };
+
+  RelationalExpContext* relationalExp();
+
+  class  RelationalOpContext : public antlr4::ParserRuleContext {
+  public:
+    RelationalOpContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    virtual size_t getRuleIndex() const override;
+    antlr4::tree::TerminalNode *T_LT();
+    antlr4::tree::TerminalNode *T_GT();
+    antlr4::tree::TerminalNode *T_LE();
+    antlr4::tree::TerminalNode *T_GE();
+
+
+    virtual std::any accept(antlr4::tree::ParseTreeVisitor *visitor) override;
+   
+  };
+
+  RelationalOpContext* relationalOp();
 
   class  AddExpContext : public antlr4::ParserRuleContext {
   public:
@@ -320,6 +471,7 @@ public:
     virtual size_t getRuleIndex() const override;
     antlr4::tree::TerminalNode *T_SUB();
     UnaryExpContext *unaryExp();
+    antlr4::tree::TerminalNode *T_NOT();
     PrimaryExpContext *primaryExp();
     antlr4::tree::TerminalNode *T_ID();
     antlr4::tree::TerminalNode *T_L_PAREN();
