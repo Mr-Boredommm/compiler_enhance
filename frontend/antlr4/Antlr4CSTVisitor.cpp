@@ -355,7 +355,7 @@ std::any MiniCCSTVisitor::visitPrimaryExp(MiniCParser::PrimaryExpContext * ctx)
             try {
                 if (text.find("0x") == 0 || text.find("0X") == 0) {
                     val = std::stoull(text.substr(2), nullptr, 16); // 去掉0x前缀和L后缀
-                } else if (text[0] == '0') {
+                } else if (text[0] == '0' && text.length() > 2) { // 至少是"0NL"格式
                     val = std::stoull(text.substr(1), nullptr, 8); // 去掉0前缀和L后缀
                 } else {
                     val = std::stoull(text.substr(0, text.size() - 1), nullptr, 10); // 去掉L后缀
@@ -372,7 +372,7 @@ std::any MiniCCSTVisitor::visitPrimaryExp(MiniCParser::PrimaryExpContext * ctx)
             try {
                 if (text.find("0x") == 0 || text.find("0X") == 0) {
                     attr.val = std::stoul(text.substr(2), nullptr, 16);
-                } else if (text[0] == '0') {
+                } else if (text[0] == '0' && text.length() > 1) {
                     attr.val = std::stoul(text.substr(1), nullptr, 8);
                 } else {
                     attr.val = std::stoul(text);
@@ -683,8 +683,11 @@ std::any MiniCCSTVisitor::visitBreakStatement(MiniCParser::BreakStatementContext
 {
     // 识别文法产生式：T_BREAK T_SEMICOLON
 
-    // 创建break语句节点，无子节点
-    return ast_node::New(ast_operator_type::AST_OP_BREAK);
+    // 获取行号
+    int64_t lineNo = (int64_t) ctx->T_BREAK()->getSymbol()->getLine();
+    
+    // 创建break语句节点，传递行号
+    return create_break_stmt(lineNo);
 }
 
 /// @brief 非终结符ContinueStatement的分析
@@ -693,6 +696,9 @@ std::any MiniCCSTVisitor::visitContinueStatement(MiniCParser::ContinueStatementC
 {
     // 识别文法产生式：T_CONTINUE T_SEMICOLON
 
-    // 创建continue语句节点，无子节点
-    return ast_node::New(ast_operator_type::AST_OP_CONTINUE);
+    // 获取行号
+    int64_t lineNo = (int64_t) ctx->T_CONTINUE()->getSymbol()->getLine();
+    
+    // 创建continue语句节点，传递行号
+    return create_continue_stmt(lineNo);
 }

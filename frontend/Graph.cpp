@@ -33,23 +33,23 @@ string getNodeName(ast_node * astnode)
     string nodeName;
 
     switch (astnode->node_type) {
-    case ast_operator_type::AST_OP_LEAF_LITERAL_UINT:
-        if (astnode->numBase == 8) {
-            nodeName = "OCT: 0" + to_string(astnode->integer_val);
-        } else if (astnode->numBase == 16) {
-            char buf[32];
-            snprintf(buf, sizeof(buf), "HEX: 0x%X", astnode->integer_val);
-            nodeName = buf;
-        } else {
-            nodeName = "UINT: " + to_string(astnode->integer_val);
-        }
-        break;
-    case ast_operator_type::AST_OP_LEAF_LITERAL_FLOAT:
-        nodeName = "FLOAT: " + to_string(astnode->float_val);
-        break;
-    case ast_operator_type::AST_OP_LEAF_VAR_ID:
-        nodeName = "ID: " + astnode->name;
-        break;
+        case ast_operator_type::AST_OP_LEAF_LITERAL_UINT:
+            if (astnode->numBase == 8) {
+                nodeName = "OCT: 0" + to_string(astnode->integer_val);
+            } else if (astnode->numBase == 16) {
+                char buf[32];
+                snprintf(buf, sizeof(buf), "HEX: 0x%X", astnode->integer_val);
+                nodeName = buf;
+            } else {
+                nodeName = "UINT: " + to_string(astnode->integer_val);
+            }
+            break;
+        case ast_operator_type::AST_OP_LEAF_LITERAL_FLOAT:
+            nodeName = "FLOAT: " + to_string(astnode->float_val);
+            break;
+        case ast_operator_type::AST_OP_LEAF_VAR_ID:
+            nodeName = "ID: " + astnode->name;
+            break;
         case ast_operator_type::AST_OP_LEAF_TYPE:
             nodeName = astnode->type->toString();
             break;
@@ -91,6 +91,48 @@ string getNodeName(ast_node * astnode)
             break;
         case ast_operator_type::AST_OP_NEG:
             nodeName = "- (unary)";
+            break;
+        case ast_operator_type::AST_OP_LOGICAL_AND:
+            nodeName = "&&";
+            break;
+        case ast_operator_type::AST_OP_LOGICAL_OR:
+            nodeName = "||";
+            break;
+        case ast_operator_type::AST_OP_LOGICAL_NOT:
+            nodeName = "!";
+            break;
+        case ast_operator_type::AST_OP_LT:
+            nodeName = "<";
+            break;
+        case ast_operator_type::AST_OP_LE:
+            nodeName = "<=";
+            break;
+        case ast_operator_type::AST_OP_GT:
+            nodeName = ">";
+            break;
+        case ast_operator_type::AST_OP_GE:
+            nodeName = ">=";
+            break;
+        case ast_operator_type::AST_OP_EQ:
+            nodeName = "==";
+            break;
+        case ast_operator_type::AST_OP_NE:
+            nodeName = "!=";
+            break;
+        case ast_operator_type::AST_OP_IF:
+            nodeName = "if";
+            break;
+        case ast_operator_type::AST_OP_IF_ELSE:
+            nodeName = "if-else";
+            break;
+        case ast_operator_type::AST_OP_WHILE:
+            nodeName = "while";
+            break;
+        case ast_operator_type::AST_OP_BREAK:
+            nodeName = "break";
+            break;
+        case ast_operator_type::AST_OP_CONTINUE:
+            nodeName = "continue";
             break;
         case ast_operator_type::AST_OP_ASSIGN:
             nodeName = "=";

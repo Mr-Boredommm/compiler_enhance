@@ -45,8 +45,8 @@ ast_node::ast_node(digit_int_attr attr)
     : ast_node(ast_operator_type::AST_OP_LEAF_LITERAL_UINT, IntegerType::getTypeInt(), attr.lineno)
 {
     integer_val = attr.val;
-    this->numBase = 10;      // 默认10进制
-    this->isSigned = true;   // 支持有符号数
+    this->numBase = 10;    // 默认10进制
+    this->isSigned = true; // 支持有符号数
 }
 
 /// @brief 针对64位整数字面量的构造函数
@@ -56,8 +56,8 @@ ast_node::ast_node(uint64_t val, int64_t line_no)
     : ast_node(ast_operator_type::AST_OP_LEAF_LITERAL_LL, IntegerType::getTypeInt(), line_no)
 {
     longlong_val = val;
-    this->numBase = 10;      // 默认10进制
-    this->isSigned = true;   // 支持有符号数
+    this->numBase = 10;    // 默认10进制
+    this->isSigned = true; // 支持有符号数
 }
 
 /// @brief 针对标识符ID的叶子构造函数
@@ -428,4 +428,201 @@ ast_node * add_var_decl_node(ast_node * stmt_node, var_id_attr & id)
     (void) stmt_node->insert_son_node(decl_node);
 
     return stmt_node;
+}
+
+///
+/// @brief 创建if语句节点
+/// @param condition_node 条件表达式节点
+/// @param then_body_node 条件为真时执行的语句块节点
+/// @return 创建的节点
+///
+ast_node * create_if_stmt(ast_node * condition_node, ast_node * then_body_node)
+{
+    ast_node * node = new ast_node(ast_operator_type::AST_OP_IF);
+
+    // 必须有条件节点
+    if (condition_node) {
+        (void) node->insert_son_node(condition_node);
+    }
+
+    // 必须有真分支语句块
+    if (then_body_node) {
+        (void) node->insert_son_node(then_body_node);
+    } else {
+        // 如果没有语句块，创建一个空语句块
+        ast_node * empty_block = new ast_node(ast_operator_type::AST_OP_BLOCK);
+        (void) node->insert_son_node(empty_block);
+    }
+
+    return node;
+}
+
+///
+/// @brief 创建if-else语句节点
+/// @param condition_node 条件表达式节点
+/// @param then_body_node 条件为真时执行的语句块节点
+/// @param else_body_node 条件为假时执行的语句块节点
+/// @return 创建的节点
+///
+ast_node * create_if_else_stmt(ast_node * condition_node, ast_node * then_body_node, ast_node * else_body_node)
+{
+    ast_node * node = new ast_node(ast_operator_type::AST_OP_IF_ELSE);
+
+    // 必须有条件节点
+    if (condition_node) {
+        (void) node->insert_son_node(condition_node);
+    }
+
+    // 必须有真分支语句块
+    if (then_body_node) {
+        (void) node->insert_son_node(then_body_node);
+    } else {
+        // 如果没有语句块，创建一个空语句块
+        ast_node * empty_block = new ast_node(ast_operator_type::AST_OP_BLOCK);
+        (void) node->insert_son_node(empty_block);
+    }
+
+    // 必须有假分支语句块
+    if (else_body_node) {
+        (void) node->insert_son_node(else_body_node);
+    } else {
+        // 如果没有语句块，创建一个空语句块
+        ast_node * empty_block = new ast_node(ast_operator_type::AST_OP_BLOCK);
+        (void) node->insert_son_node(empty_block);
+    }
+
+    return node;
+}
+
+///
+/// @brief 创建while循环语句节点
+/// @param condition_node 循环条件表达式节点
+/// @param body_node 循环体语句块节点
+/// @return 创建的节点
+///
+ast_node * create_while_stmt(ast_node * condition_node, ast_node * body_node)
+{
+    ast_node * node = new ast_node(ast_operator_type::AST_OP_WHILE);
+
+    // 必须有条件节点
+    if (condition_node) {
+        (void) node->insert_son_node(condition_node);
+    }
+
+    // 必须有循环体语句块
+    if (body_node) {
+        (void) node->insert_son_node(body_node);
+    } else {
+        // 如果没有语句块，创建一个空语句块
+        ast_node * empty_block = new ast_node(ast_operator_type::AST_OP_BLOCK);
+        (void) node->insert_son_node(empty_block);
+    }
+
+    return node;
+}
+
+///
+/// @brief 创建break语句节点
+/// @param line_no 行号
+/// @return 创建的节点
+///
+ast_node * create_break_stmt(int64_t line_no)
+{
+    ast_node * node = new ast_node(ast_operator_type::AST_OP_BREAK, VoidType::getType(), line_no);
+    return node;
+}
+
+///
+/// @brief 创建continue语句节点
+/// @param line_no 行号
+/// @return 创建的节点
+///
+ast_node * create_continue_stmt(int64_t line_no)
+{
+    ast_node * node = new ast_node(ast_operator_type::AST_OP_CONTINUE, VoidType::getType(), line_no);
+    return node;
+}
+
+///
+/// @brief 创建关系运算表达式节点
+/// @param op_type 关系运算符类型（如AST_OP_LT, AST_OP_LE, AST_OP_GT等）
+/// @param left_node 左操作数节点
+/// @param right_node 右操作数节点
+/// @return 创建的节点
+///
+ast_node * create_relational_expr(ast_operator_type op_type, ast_node * left_node, ast_node * right_node)
+{
+    ast_node * node = new ast_node(op_type);
+
+    // 插入左右操作数
+    if (left_node) {
+        (void) node->insert_son_node(left_node);
+    }
+
+    if (right_node) {
+        (void) node->insert_son_node(right_node);
+    }
+
+    return node;
+}
+
+///
+/// @brief 创建逻辑与表达式节点
+/// @param left_node 左操作数节点
+/// @param right_node 右操作数节点
+/// @return 创建的节点
+///
+ast_node * create_logical_and_expr(ast_node * left_node, ast_node * right_node)
+{
+    ast_node * node = new ast_node(ast_operator_type::AST_OP_LOGICAL_AND);
+
+    // 插入左右操作数
+    if (left_node) {
+        (void) node->insert_son_node(left_node);
+    }
+
+    if (right_node) {
+        (void) node->insert_son_node(right_node);
+    }
+
+    return node;
+}
+
+///
+/// @brief 创建逻辑或表达式节点
+/// @param left_node 左操作数节点
+/// @param right_node 右操作数节点
+/// @return 创建的节点
+///
+ast_node * create_logical_or_expr(ast_node * left_node, ast_node * right_node)
+{
+    ast_node * node = new ast_node(ast_operator_type::AST_OP_LOGICAL_OR);
+
+    // 插入左右操作数
+    if (left_node) {
+        (void) node->insert_son_node(left_node);
+    }
+
+    if (right_node) {
+        (void) node->insert_son_node(right_node);
+    }
+
+    return node;
+}
+
+///
+/// @brief 创建逻辑非表达式节点
+/// @param operand_node 操作数节点
+/// @return 创建的节点
+///
+ast_node * create_logical_not_expr(ast_node * operand_node)
+{
+    ast_node * node = new ast_node(ast_operator_type::AST_OP_LOGICAL_NOT);
+
+    // 插入操作数
+    if (operand_node) {
+        (void) node->insert_son_node(operand_node);
+    }
+
+    return node;
 }
