@@ -45,9 +45,6 @@ namespace RelationalOpGenerator {
         if (!node)
             return nullptr;
 
-        // 在真实实现中，这应该调用 IRGenerator 的 ir_visit_ast_node 方法
-        // 这里只是一个简化版本，演示目的
-
         // 获取当前函数
         Function * func = module->getCurrentFunction();
         if (!func) {
@@ -65,7 +62,7 @@ namespace RelationalOpGenerator {
             return node;
         }
 
-        // 处理关系和逻辑运算符节点
+        // 让RelationalOpGenerator处理的节点类型
         switch (node->node_type) {
             case ast_operator_type::AST_OP_LT:
                 if (rel_lt(node, module))

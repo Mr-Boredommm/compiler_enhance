@@ -19,6 +19,7 @@
 #include <unordered_map>
 #include <vector>
 #include <iostream>
+#include <sstream>
 
 #include "AST.h"
 #include "Common.h"
@@ -35,6 +36,18 @@
 #include "GotoInstruction.h"
 #include "IfInstruction.h"
 #include "RelationalOpGenerator.h"
+
+/// @brief 生成IR标签名称的计数器
+static int label_counter = 0;
+
+/// @brief 生成唯一的标签名称
+/// @return 唯一的标签名称
+static std::string generate_label()
+{
+    std::stringstream ss;
+    ss << "L" << label_counter++;
+    return ss.str();
+}
 
 /// @brief 构造函数
 /// @param _root AST的根
@@ -816,8 +829,33 @@ bool IRGenerator::ir_variable_declare(ast_node * node)
 /// @return 翻译是否成功，true：成功，false：失败
 bool IRGenerator::ir_lt(ast_node * node)
 {
-    // 委托给RelationalOpGenerator命名空间中的实现
-    return RelationalOpGenerator::rel_lt(node, module);
+    // 获取左右操作数
+    auto left = ir_visit_ast_node(node->sons[0]);
+    if (!left) {
+        return false;
+    }
+
+    auto right = ir_visit_ast_node(node->sons[1]);
+    if (!right) {
+        return false;
+    }
+
+    // 创建比较指令，结果为0或1
+    BinaryInstruction * ltInst = new BinaryInstruction(module->getCurrentFunction(),
+                                                       IRInstOperator::IRINST_OP_LT,
+                                                       left->val,
+                                                       right->val,
+                                                       IntegerType::getTypeInt());
+
+    // 添加到当前节点的指令列表
+    node->blockInsts.addInst(left->blockInsts);
+    node->blockInsts.addInst(right->blockInsts);
+    node->blockInsts.addInst(ltInst);
+
+    // 设置节点的值为比较结果
+    node->val = ltInst;
+
+    return true;
 }
 
 /// @brief 关系运算符 <= 翻译成线性中间IR
@@ -825,8 +863,33 @@ bool IRGenerator::ir_lt(ast_node * node)
 /// @return 翻译是否成功，true：成功，false：失败
 bool IRGenerator::ir_le(ast_node * node)
 {
-    // 委托给RelationalOpGenerator命名空间中的实现
-    return RelationalOpGenerator::rel_le(node, module);
+    // 获取左右操作数
+    auto left = ir_visit_ast_node(node->sons[0]);
+    if (!left) {
+        return false;
+    }
+
+    auto right = ir_visit_ast_node(node->sons[1]);
+    if (!right) {
+        return false;
+    }
+
+    // 创建比较指令，结果为0或1
+    BinaryInstruction * leInst = new BinaryInstruction(module->getCurrentFunction(),
+                                                       IRInstOperator::IRINST_OP_LE,
+                                                       left->val,
+                                                       right->val,
+                                                       IntegerType::getTypeInt());
+
+    // 添加到当前节点的指令列表
+    node->blockInsts.addInst(left->blockInsts);
+    node->blockInsts.addInst(right->blockInsts);
+    node->blockInsts.addInst(leInst);
+
+    // 设置节点的值为比较结果
+    node->val = leInst;
+
+    return true;
 }
 
 /// @brief 关系运算符 > 翻译成线性中间IR
@@ -834,8 +897,33 @@ bool IRGenerator::ir_le(ast_node * node)
 /// @return 翻译是否成功，true：成功，false：失败
 bool IRGenerator::ir_gt(ast_node * node)
 {
-    // 委托给RelationalOpGenerator命名空间中的实现
-    return RelationalOpGenerator::rel_gt(node, module);
+    // 获取左右操作数
+    auto left = ir_visit_ast_node(node->sons[0]);
+    if (!left) {
+        return false;
+    }
+
+    auto right = ir_visit_ast_node(node->sons[1]);
+    if (!right) {
+        return false;
+    }
+
+    // 创建比较指令，结果为0或1
+    BinaryInstruction * gtInst = new BinaryInstruction(module->getCurrentFunction(),
+                                                       IRInstOperator::IRINST_OP_GT,
+                                                       left->val,
+                                                       right->val,
+                                                       IntegerType::getTypeInt());
+
+    // 添加到当前节点的指令列表
+    node->blockInsts.addInst(left->blockInsts);
+    node->blockInsts.addInst(right->blockInsts);
+    node->blockInsts.addInst(gtInst);
+
+    // 设置节点的值为比较结果
+    node->val = gtInst;
+
+    return true;
 }
 
 /// @brief 关系运算符 >= 翻译成线性中间IR
@@ -843,8 +931,33 @@ bool IRGenerator::ir_gt(ast_node * node)
 /// @return 翻译是否成功，true：成功，false：失败
 bool IRGenerator::ir_ge(ast_node * node)
 {
-    // 委托给RelationalOpGenerator命名空间中的实现
-    return RelationalOpGenerator::rel_ge(node, module);
+    // 获取左右操作数
+    auto left = ir_visit_ast_node(node->sons[0]);
+    if (!left) {
+        return false;
+    }
+
+    auto right = ir_visit_ast_node(node->sons[1]);
+    if (!right) {
+        return false;
+    }
+
+    // 创建比较指令，结果为0或1
+    BinaryInstruction * geInst = new BinaryInstruction(module->getCurrentFunction(),
+                                                       IRInstOperator::IRINST_OP_GE,
+                                                       left->val,
+                                                       right->val,
+                                                       IntegerType::getTypeInt());
+
+    // 添加到当前节点的指令列表
+    node->blockInsts.addInst(left->blockInsts);
+    node->blockInsts.addInst(right->blockInsts);
+    node->blockInsts.addInst(geInst);
+
+    // 设置节点的值为比较结果
+    node->val = geInst;
+
+    return true;
 }
 
 /// @brief 关系运算符 == 翻译成线性中间IR
@@ -852,8 +965,33 @@ bool IRGenerator::ir_ge(ast_node * node)
 /// @return 翻译是否成功，true：成功，false：失败
 bool IRGenerator::ir_eq(ast_node * node)
 {
-    // 委托给RelationalOpGenerator命名空间中的实现
-    return RelationalOpGenerator::rel_eq(node, module);
+    // 获取左右操作数
+    auto left = ir_visit_ast_node(node->sons[0]);
+    if (!left) {
+        return false;
+    }
+
+    auto right = ir_visit_ast_node(node->sons[1]);
+    if (!right) {
+        return false;
+    }
+
+    // 创建比较指令，结果为0或1
+    BinaryInstruction * eqInst = new BinaryInstruction(module->getCurrentFunction(),
+                                                       IRInstOperator::IRINST_OP_EQ,
+                                                       left->val,
+                                                       right->val,
+                                                       IntegerType::getTypeInt());
+
+    // 添加到当前节点的指令列表
+    node->blockInsts.addInst(left->blockInsts);
+    node->blockInsts.addInst(right->blockInsts);
+    node->blockInsts.addInst(eqInst);
+
+    // 设置节点的值为比较结果
+    node->val = eqInst;
+
+    return true;
 }
 
 /// @brief 关系运算符 != 翻译成线性中间IR
@@ -861,8 +999,33 @@ bool IRGenerator::ir_eq(ast_node * node)
 /// @return 翻译是否成功，true：成功，false：失败
 bool IRGenerator::ir_ne(ast_node * node)
 {
-    // 委托给RelationalOpGenerator命名空间中的实现
-    return RelationalOpGenerator::rel_ne(node, module);
+    // 获取左右操作数
+    auto left = ir_visit_ast_node(node->sons[0]);
+    if (!left) {
+        return false;
+    }
+
+    auto right = ir_visit_ast_node(node->sons[1]);
+    if (!right) {
+        return false;
+    }
+
+    // 创建比较指令，结果为0或1
+    BinaryInstruction * neInst = new BinaryInstruction(module->getCurrentFunction(),
+                                                       IRInstOperator::IRINST_OP_NE,
+                                                       left->val,
+                                                       right->val,
+                                                       IntegerType::getTypeInt());
+
+    // 添加到当前节点的指令列表
+    node->blockInsts.addInst(left->blockInsts);
+    node->blockInsts.addInst(right->blockInsts);
+    node->blockInsts.addInst(neInst);
+
+    // 设置节点的值为比较结果
+    node->val = neInst;
+
+    return true;
 }
 
 /// @brief 逻辑与 && 翻译成线性中间IR，实现短路求值
@@ -870,8 +1033,63 @@ bool IRGenerator::ir_ne(ast_node * node)
 /// @return 翻译是否成功，true：成功，false：失败
 bool IRGenerator::ir_logical_and(ast_node * node)
 {
-    // 委托给RelationalOpGenerator命名空间中的实现
-    return RelationalOpGenerator::rel_logical_and(node, module);
+    // 实现短路求值的逻辑与
+    // 生成左操作数的代码
+    ast_node * left = ir_visit_ast_node(node->sons[0]);
+    if (!left) {
+        return false;
+    }
+
+    // 创建结果临时变量
+    Value * result = module->newVarValue(IntegerType::getTypeInt());
+
+    // 创建跳转标签
+    std::string falseLabel = generate_label();
+    std::string endLabel = generate_label();
+
+    // 如果左操作数为假，直接短路，结果为0
+    LabelInstruction* falseLabelInst = new LabelInstruction(module->getCurrentFunction(), falseLabel);
+    IfInstruction * ifInst = new IfInstruction(module->getCurrentFunction(), 
+                                               IRInstOperator::IRINST_OP_IFNOT, 
+                                               left->val, 
+                                               falseLabelInst);
+
+    // 生成右操作数的代码
+    ast_node * right = ir_visit_ast_node(node->sons[1]);
+    if (!right) {
+        return false;
+    }
+
+    // 结果为右操作数的值
+    MoveInstruction * moveInst = new MoveInstruction(module->getCurrentFunction(), result, right->val);
+
+    // 跳转到结束
+    LabelInstruction* endLabelInst = new LabelInstruction(module->getCurrentFunction(), endLabel);
+    GotoInstruction * gotoEnd = new GotoInstruction(module->getCurrentFunction(), endLabelInst);
+
+    // 设置false标签
+    // falseLabelInst已经在前面定义
+
+    // 设置结果为0
+    Value * zero = module->newConstInt(0);
+    MoveInstruction * setFalse = new MoveInstruction(module->getCurrentFunction(), result, zero);
+
+    // 设置结束标签
+    // endLabelInst已经在前面定义
+
+    // 添加指令
+    node->blockInsts.addInst(left->blockInsts);
+    node->blockInsts.addInst(ifInst);
+    node->blockInsts.addInst(right->blockInsts);
+    node->blockInsts.addInst(moveInst);
+    node->blockInsts.addInst(gotoEnd);
+    node->blockInsts.addInst(falseLabelInst);
+    node->blockInsts.addInst(setFalse);
+    node->blockInsts.addInst(endLabelInst);
+
+    node->val = result;
+
+    return true;
 }
 
 /// @brief 逻辑或 || 翻译成线性中间IR，实现短路求值
@@ -879,8 +1097,63 @@ bool IRGenerator::ir_logical_and(ast_node * node)
 /// @return 翻译是否成功，true：成功，false：失败
 bool IRGenerator::ir_logical_or(ast_node * node)
 {
-    // 委托给RelationalOpGenerator命名空间中的实现
-    return RelationalOpGenerator::rel_logical_or(node, module);
+    // 实现短路求值的逻辑或
+    // 生成左操作数的代码
+    ast_node * left = ir_visit_ast_node(node->sons[0]);
+    if (!left) {
+        return false;
+    }
+
+    // 创建结果临时变量
+    Value * result = module->newVarValue(IntegerType::getTypeInt());
+
+    // 创建跳转标签
+    std::string trueLabel = generate_label();
+    std::string endLabel = generate_label();
+
+    // 如果左操作数为真，直接短路，结果为1
+    LabelInstruction* trueLabelInst = new LabelInstruction(module->getCurrentFunction(), trueLabel);
+    IfInstruction * ifInst = new IfInstruction(module->getCurrentFunction(), 
+                                              IRInstOperator::IRINST_OP_IF, 
+                                              left->val, 
+                                              trueLabelInst);
+
+    // 生成右操作数的代码
+    ast_node * right = ir_visit_ast_node(node->sons[1]);
+    if (!right) {
+        return false;
+    }
+
+    // 结果为右操作数的值
+    MoveInstruction * moveInst = new MoveInstruction(module->getCurrentFunction(), result, right->val);
+
+    // 跳转到结束
+    LabelInstruction* endLabelInst = new LabelInstruction(module->getCurrentFunction(), endLabel);
+    GotoInstruction * gotoEnd = new GotoInstruction(module->getCurrentFunction(), endLabelInst);
+
+    // 添加已生成的真分支标签
+    // trueLabelInst已在前面定义
+
+    // 设置结果为1
+    Value * one = module->newConstInt(1);
+    MoveInstruction * setTrue = new MoveInstruction(module->getCurrentFunction(), result, one);
+
+    // 设置结束标签
+    // endLabelInst已经在前面定义
+
+    // 添加指令
+    node->blockInsts.addInst(left->blockInsts);
+    node->blockInsts.addInst(ifInst);
+    node->blockInsts.addInst(right->blockInsts);
+    node->blockInsts.addInst(moveInst);
+    node->blockInsts.addInst(gotoEnd);
+    node->blockInsts.addInst(trueLabelInst);
+    node->blockInsts.addInst(setTrue);
+    node->blockInsts.addInst(endLabelInst);
+
+    node->val = result;
+
+    return true;
 }
 
 /// @brief 逻辑非 ! 翻译成线性中间IR
@@ -888,8 +1161,27 @@ bool IRGenerator::ir_logical_or(ast_node * node)
 /// @return 翻译是否成功，true：成功，false：失败
 bool IRGenerator::ir_logical_not(ast_node * node)
 {
-    // 委托给RelationalOpGenerator命名空间中的实现
-    return RelationalOpGenerator::rel_logical_not(node, module);
+    // 生成操作数的代码
+    ast_node * operand = ir_visit_ast_node(node->sons[0]);
+    if (!operand) {
+        return false;
+    }
+
+    // 创建比较指令，将操作数与0比较
+    Value * zero = module->newConstInt(0);
+    BinaryInstruction * eqInst = new BinaryInstruction(module->getCurrentFunction(),
+                                                       IRInstOperator::IRINST_OP_EQ,
+                                                       operand->val,
+                                                       zero,
+                                                       IntegerType::getTypeInt());
+
+    // 添加指令
+    node->blockInsts.addInst(operand->blockInsts);
+    node->blockInsts.addInst(eqInst);
+
+    node->val = eqInst;
+
+    return true;
 }
 
 /// @brief if语句翻译成线性中间IR
@@ -897,8 +1189,50 @@ bool IRGenerator::ir_logical_not(ast_node * node)
 /// @return 翻译是否成功，true：成功，false：失败
 bool IRGenerator::ir_if(ast_node * node)
 {
-    // 委托给RelationalOpGenerator命名空间中的实现
-    return RelationalOpGenerator::rel_if(node, module);
+    // if语句包含两个子节点：
+    // 1. 条件表达式
+    // 2. 如果条件为真执行的语句（可能是语句块）
+
+    // 生成条件表达式的代码
+    ast_node * condition = ir_visit_ast_node(node->sons[0]);
+    if (!condition) {
+        return false;
+    }
+
+    // 创建标签
+    std::string thenLabel = generate_label(); // 真分支的标签
+    std::string endLabel = generate_label();  // if语句结束的标签
+
+    // 条件为真则跳转到thenLabel，否则跳转到endLabel
+    LabelInstruction* thenLabelInst = new LabelInstruction(module->getCurrentFunction(), thenLabel);
+    LabelInstruction* endLabelInst = new LabelInstruction(module->getCurrentFunction(), endLabel);
+    IfInstruction * ifInst = new IfInstruction(module->getCurrentFunction(), 
+                                              IRInstOperator::IRINST_OP_IF, 
+                                              condition->val, 
+                                              thenLabelInst);
+    GotoInstruction * gotoEndInst = new GotoInstruction(module->getCurrentFunction(), endLabelInst);
+
+    // 添加条件和跳转指令
+    node->blockInsts.addInst(condition->blockInsts);
+    node->blockInsts.addInst(ifInst);
+    node->blockInsts.addInst(gotoEndInst);
+
+    // 添加真分支标签
+    node->blockInsts.addInst(thenLabelInst);
+
+    // 生成真分支的代码
+    ast_node * thenStmt = ir_visit_ast_node(node->sons[1]);
+    if (!thenStmt) {
+        return false;
+    }
+
+    // 添加真分支的代码
+    node->blockInsts.addInst(thenStmt->blockInsts);
+
+    // 添加结束标签
+    node->blockInsts.addInst(endLabelInst);
+
+    return true;
 }
 
 /// @brief if-else语句翻译成线性中间IR
@@ -906,8 +1240,70 @@ bool IRGenerator::ir_if(ast_node * node)
 /// @return 翻译是否成功，true：成功，false：失败
 bool IRGenerator::ir_if_else(ast_node * node)
 {
-    // 委托给RelationalOpGenerator命名空间中的实现
-    return RelationalOpGenerator::rel_if_else(node, module);
+    // if-else语句包含三个子节点：
+    // 1. 条件表达式
+    // 2. 如果条件为真执行的语句（可能是语句块）
+    // 3. 如果条件为假执行的语句（可能是语句块）
+
+    // 生成条件表达式的代码
+    ast_node * condition = ir_visit_ast_node(node->sons[0]);
+    if (!condition) {
+        return false;
+    }
+
+    // 创建标签
+    std::string thenLabel = generate_label(); // 真分支的标签
+    std::string elseLabel = generate_label(); // 假分支的标签
+    std::string endLabel = generate_label();  // if-else语句结束的标签
+
+    // 条件为真则跳转到thenLabel，否则跳转到elseLabel
+    LabelInstruction* thenLabelInst = new LabelInstruction(module->getCurrentFunction(), thenLabel);
+    LabelInstruction* elseLabelInst = new LabelInstruction(module->getCurrentFunction(), elseLabel);
+    LabelInstruction* endLabelInst = new LabelInstruction(module->getCurrentFunction(), endLabel);
+    
+    IfInstruction * ifInst = new IfInstruction(module->getCurrentFunction(), 
+                                              IRInstOperator::IRINST_OP_IF, 
+                                              condition->val, 
+                                              thenLabelInst);
+    GotoInstruction * gotoElseInst = new GotoInstruction(module->getCurrentFunction(), elseLabelInst);
+
+    // 添加条件和跳转指令
+    node->blockInsts.addInst(condition->blockInsts);
+    node->blockInsts.addInst(ifInst);
+    node->blockInsts.addInst(gotoElseInst);
+
+    // 添加真分支标签
+    node->blockInsts.addInst(thenLabelInst);
+
+    // 生成真分支的代码
+    ast_node * thenStmt = ir_visit_ast_node(node->sons[1]);
+    if (!thenStmt) {
+        return false;
+    }
+
+    // 添加真分支的代码
+    node->blockInsts.addInst(thenStmt->blockInsts);
+
+    // 真分支结束后跳转到endLabel
+    GotoInstruction * gotoEndInst = new GotoInstruction(module->getCurrentFunction(), endLabelInst);
+    node->blockInsts.addInst(gotoEndInst);
+
+    // 添加假分支标签
+    node->blockInsts.addInst(elseLabelInst);
+
+    // 生成假分支的代码
+    ast_node * elseStmt = ir_visit_ast_node(node->sons[2]);
+    if (!elseStmt) {
+        return false;
+    }
+
+    // 添加假分支的代码
+    node->blockInsts.addInst(elseStmt->blockInsts);
+
+    // 添加结束标签
+    node->blockInsts.addInst(endLabelInst);
+
+    return true;
 }
 
 /// @brief while循环语句翻译成线性中间IR
@@ -915,9 +1311,94 @@ bool IRGenerator::ir_if_else(ast_node * node)
 /// @return 翻译是否成功，true：成功，false：失败
 bool IRGenerator::ir_while(ast_node * node)
 {
-    // 此方法的实现在RelationalOpGenerator.cpp中
-    // 直接调用其中的实现
-    return ir_visit_ast_node(node) != nullptr;
+    // while循环包含两个子节点：
+    // 1. 条件表达式
+    // 2. 循环体（可能是语句块）
+    
+    // 创建循环需要的标签
+    std::string startLabel = generate_label(); // 循环的开始标签，用于条件判断
+    std::string bodyLabel = generate_label();  // 循环体的开始标签
+    std::string endLabel = generate_label();   // 循环结束的标签
+    
+    // 保存之前的循环标签（如果有嵌套循环）
+    whileLabels.push_back({startLabel, endLabel});
+    
+    // 更新当前处理的循环标签
+    currentWhileStartLabel = startLabel;
+    currentWhileEndLabel = endLabel;
+    
+    // 添加循环开始标签
+    LabelInstruction * startLabelInst = new LabelInstruction(module->getCurrentFunction(), startLabel);
+    node->blockInsts.addInst(startLabelInst);
+    
+    // 生成条件表达式的代码
+    ast_node * condition = ir_visit_ast_node(node->sons[0]);
+    if (!condition) {
+        whileLabels.pop_back();
+        if (!whileLabels.empty()) {
+            currentWhileStartLabel = whileLabels.back().first;
+            currentWhileEndLabel = whileLabels.back().second;
+        } else {
+            currentWhileStartLabel = "";
+            currentWhileEndLabel = "";
+        }
+        return false;
+    }
+    
+    // 条件为真则跳转到bodyLabel，否则跳转到endLabel
+    LabelInstruction* bodyLabelInst = new LabelInstruction(module->getCurrentFunction(), bodyLabel);
+    LabelInstruction* endLabelInst = new LabelInstruction(module->getCurrentFunction(), endLabel);
+    
+    IfInstruction * ifInst = new IfInstruction(module->getCurrentFunction(), 
+                                              IRInstOperator::IRINST_OP_IF, 
+                                              condition->val, 
+                                              bodyLabelInst);
+    GotoInstruction * gotoEndInst = new GotoInstruction(module->getCurrentFunction(), endLabelInst);
+    
+    // 添加条件和跳转指令
+    node->blockInsts.addInst(condition->blockInsts);
+    node->blockInsts.addInst(ifInst);
+    node->blockInsts.addInst(gotoEndInst);
+    
+    // 添加循环体开始标签
+    node->blockInsts.addInst(bodyLabelInst);
+    
+    // 生成循环体的代码
+    ast_node * body = ir_visit_ast_node(node->sons[1]);
+    if (!body) {
+        whileLabels.pop_back();
+        if (!whileLabels.empty()) {
+            currentWhileStartLabel = whileLabels.back().first;
+            currentWhileEndLabel = whileLabels.back().second;
+        } else {
+            currentWhileStartLabel = "";
+            currentWhileEndLabel = "";
+        }
+        return false;
+    }
+    
+    // 添加循环体的代码
+    node->blockInsts.addInst(body->blockInsts);
+    
+    // 循环体结束后跳转回循环开始
+    LabelInstruction* startLabelInst2 = new LabelInstruction(module->getCurrentFunction(), startLabel);
+    GotoInstruction * gotoStartInst = new GotoInstruction(module->getCurrentFunction(), startLabelInst2);
+    node->blockInsts.addInst(gotoStartInst);
+    
+    // 添加循环结束标签
+    node->blockInsts.addInst(endLabelInst);
+    
+    // 恢复之前的循环标签
+    whileLabels.pop_back();
+    if (!whileLabels.empty()) {
+        currentWhileStartLabel = whileLabels.back().first;
+        currentWhileEndLabel = whileLabels.back().second;
+    } else {
+        currentWhileStartLabel = "";
+        currentWhileEndLabel = "";
+    }
+    
+    return true;
 }
 
 /// @brief break语句翻译成线性中间IR
@@ -925,9 +1406,24 @@ bool IRGenerator::ir_while(ast_node * node)
 /// @return 翻译是否成功，true：成功，false：失败
 bool IRGenerator::ir_break(ast_node * node)
 {
-    // 此方法的实现在RelationalOpGenerator.cpp中
-    // 直接调用其中的实现
-    return ir_visit_ast_node(node) != nullptr;
+    // 获取当前函数
+    Function * func = module->getCurrentFunction();
+    if (!func) {
+        return false;
+    }
+
+    // 检查是否在循环内
+    if (whileLabels.empty() || currentWhileEndLabel.empty()) {
+        minic_log(LOG_ERROR, "break语句只能用于while循环内");
+        return false;
+    }
+
+    // 无条件跳转到当前循环的结束标签
+    LabelInstruction * endLabelInst = new LabelInstruction(func, currentWhileEndLabel);
+    GotoInstruction * gotoEndInst = new GotoInstruction(func, endLabelInst);
+    node->blockInsts.addInst(gotoEndInst);
+
+    return true;
 }
 
 /// @brief continue语句翻译成线性中间IR
@@ -935,7 +1431,22 @@ bool IRGenerator::ir_break(ast_node * node)
 /// @return 翻译是否成功，true：成功，false：失败
 bool IRGenerator::ir_continue(ast_node * node)
 {
-    // 此方法的实现在RelationalOpGenerator.cpp中
-    // 直接调用其中的实现
-    return ir_visit_ast_node(node) != nullptr;
+    // 获取当前函数
+    Function * func = module->getCurrentFunction();
+    if (!func) {
+        return false;
+    }
+
+    // 检查是否在循环内
+    if (whileLabels.empty() || currentWhileStartLabel.empty()) {
+        minic_log(LOG_ERROR, "continue语句只能用于while循环内");
+        return false;
+    }
+
+    // 无条件跳转到当前循环的开始标签
+    LabelInstruction * startLabelInst = new LabelInstruction(func, currentWhileStartLabel);
+    GotoInstruction * gotoStartInst = new GotoInstruction(func, startLabelInst);
+    node->blockInsts.addInst(gotoStartInst);
+
+    return true;
 }
