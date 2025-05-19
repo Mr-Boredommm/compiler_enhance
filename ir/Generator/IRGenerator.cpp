@@ -1048,11 +1048,9 @@ bool IRGenerator::ir_logical_and(ast_node * node)
     std::string endLabel = generate_label();
 
     // 如果左操作数为假，直接短路，结果为0
-    LabelInstruction* falseLabelInst = new LabelInstruction(module->getCurrentFunction(), falseLabel);
-    IfInstruction * ifInst = new IfInstruction(module->getCurrentFunction(), 
-                                               IRInstOperator::IRINST_OP_IFNOT, 
-                                               left->val, 
-                                               falseLabelInst);
+    LabelInstruction * falseLabelInst = new LabelInstruction(module->getCurrentFunction(), falseLabel);
+    IfInstruction * ifInst =
+        new IfInstruction(module->getCurrentFunction(), IRInstOperator::IRINST_OP_IFNOT, left->val, falseLabelInst);
 
     // 生成右操作数的代码
     ast_node * right = ir_visit_ast_node(node->sons[1]);
@@ -1064,7 +1062,7 @@ bool IRGenerator::ir_logical_and(ast_node * node)
     MoveInstruction * moveInst = new MoveInstruction(module->getCurrentFunction(), result, right->val);
 
     // 跳转到结束
-    LabelInstruction* endLabelInst = new LabelInstruction(module->getCurrentFunction(), endLabel);
+    LabelInstruction * endLabelInst = new LabelInstruction(module->getCurrentFunction(), endLabel);
     GotoInstruction * gotoEnd = new GotoInstruction(module->getCurrentFunction(), endLabelInst);
 
     // 设置false标签
@@ -1112,11 +1110,9 @@ bool IRGenerator::ir_logical_or(ast_node * node)
     std::string endLabel = generate_label();
 
     // 如果左操作数为真，直接短路，结果为1
-    LabelInstruction* trueLabelInst = new LabelInstruction(module->getCurrentFunction(), trueLabel);
-    IfInstruction * ifInst = new IfInstruction(module->getCurrentFunction(), 
-                                              IRInstOperator::IRINST_OP_IF, 
-                                              left->val, 
-                                              trueLabelInst);
+    LabelInstruction * trueLabelInst = new LabelInstruction(module->getCurrentFunction(), trueLabel);
+    IfInstruction * ifInst =
+        new IfInstruction(module->getCurrentFunction(), IRInstOperator::IRINST_OP_IF, left->val, trueLabelInst);
 
     // 生成右操作数的代码
     ast_node * right = ir_visit_ast_node(node->sons[1]);
@@ -1128,7 +1124,7 @@ bool IRGenerator::ir_logical_or(ast_node * node)
     MoveInstruction * moveInst = new MoveInstruction(module->getCurrentFunction(), result, right->val);
 
     // 跳转到结束
-    LabelInstruction* endLabelInst = new LabelInstruction(module->getCurrentFunction(), endLabel);
+    LabelInstruction * endLabelInst = new LabelInstruction(module->getCurrentFunction(), endLabel);
     GotoInstruction * gotoEnd = new GotoInstruction(module->getCurrentFunction(), endLabelInst);
 
     // 添加已生成的真分支标签
@@ -1204,12 +1200,10 @@ bool IRGenerator::ir_if(ast_node * node)
     std::string endLabel = generate_label();  // if语句结束的标签
 
     // 条件为真则跳转到thenLabel，否则跳转到endLabel
-    LabelInstruction* thenLabelInst = new LabelInstruction(module->getCurrentFunction(), thenLabel);
-    LabelInstruction* endLabelInst = new LabelInstruction(module->getCurrentFunction(), endLabel);
-    IfInstruction * ifInst = new IfInstruction(module->getCurrentFunction(), 
-                                              IRInstOperator::IRINST_OP_IF, 
-                                              condition->val, 
-                                              thenLabelInst);
+    LabelInstruction * thenLabelInst = new LabelInstruction(module->getCurrentFunction(), thenLabel);
+    LabelInstruction * endLabelInst = new LabelInstruction(module->getCurrentFunction(), endLabel);
+    IfInstruction * ifInst =
+        new IfInstruction(module->getCurrentFunction(), IRInstOperator::IRINST_OP_IF, condition->val, thenLabelInst);
     GotoInstruction * gotoEndInst = new GotoInstruction(module->getCurrentFunction(), endLabelInst);
 
     // 添加条件和跳转指令
@@ -1257,14 +1251,12 @@ bool IRGenerator::ir_if_else(ast_node * node)
     std::string endLabel = generate_label();  // if-else语句结束的标签
 
     // 条件为真则跳转到thenLabel，否则跳转到elseLabel
-    LabelInstruction* thenLabelInst = new LabelInstruction(module->getCurrentFunction(), thenLabel);
-    LabelInstruction* elseLabelInst = new LabelInstruction(module->getCurrentFunction(), elseLabel);
-    LabelInstruction* endLabelInst = new LabelInstruction(module->getCurrentFunction(), endLabel);
-    
-    IfInstruction * ifInst = new IfInstruction(module->getCurrentFunction(), 
-                                              IRInstOperator::IRINST_OP_IF, 
-                                              condition->val, 
-                                              thenLabelInst);
+    LabelInstruction * thenLabelInst = new LabelInstruction(module->getCurrentFunction(), thenLabel);
+    LabelInstruction * elseLabelInst = new LabelInstruction(module->getCurrentFunction(), elseLabel);
+    LabelInstruction * endLabelInst = new LabelInstruction(module->getCurrentFunction(), endLabel);
+
+    IfInstruction * ifInst =
+        new IfInstruction(module->getCurrentFunction(), IRInstOperator::IRINST_OP_IF, condition->val, thenLabelInst);
     GotoInstruction * gotoElseInst = new GotoInstruction(module->getCurrentFunction(), elseLabelInst);
 
     // 添加条件和跳转指令
@@ -1314,23 +1306,23 @@ bool IRGenerator::ir_while(ast_node * node)
     // while循环包含两个子节点：
     // 1. 条件表达式
     // 2. 循环体（可能是语句块）
-    
+
     // 创建循环需要的标签
     std::string startLabel = generate_label(); // 循环的开始标签，用于条件判断
     std::string bodyLabel = generate_label();  // 循环体的开始标签
     std::string endLabel = generate_label();   // 循环结束的标签
-    
+
     // 保存之前的循环标签（如果有嵌套循环）
     whileLabels.push_back({startLabel, endLabel});
-    
+
     // 更新当前处理的循环标签
     currentWhileStartLabel = startLabel;
     currentWhileEndLabel = endLabel;
-    
+
     // 添加循环开始标签
     LabelInstruction * startLabelInst = new LabelInstruction(module->getCurrentFunction(), startLabel);
     node->blockInsts.addInst(startLabelInst);
-    
+
     // 生成条件表达式的代码
     ast_node * condition = ir_visit_ast_node(node->sons[0]);
     if (!condition) {
@@ -1344,25 +1336,23 @@ bool IRGenerator::ir_while(ast_node * node)
         }
         return false;
     }
-    
+
     // 条件为真则跳转到bodyLabel，否则跳转到endLabel
-    LabelInstruction* bodyLabelInst = new LabelInstruction(module->getCurrentFunction(), bodyLabel);
-    LabelInstruction* endLabelInst = new LabelInstruction(module->getCurrentFunction(), endLabel);
-    
-    IfInstruction * ifInst = new IfInstruction(module->getCurrentFunction(), 
-                                              IRInstOperator::IRINST_OP_IF, 
-                                              condition->val, 
-                                              bodyLabelInst);
+    LabelInstruction * bodyLabelInst = new LabelInstruction(module->getCurrentFunction(), bodyLabel);
+    LabelInstruction * endLabelInst = new LabelInstruction(module->getCurrentFunction(), endLabel);
+
+    IfInstruction * ifInst =
+        new IfInstruction(module->getCurrentFunction(), IRInstOperator::IRINST_OP_IF, condition->val, bodyLabelInst);
     GotoInstruction * gotoEndInst = new GotoInstruction(module->getCurrentFunction(), endLabelInst);
-    
+
     // 添加条件和跳转指令
     node->blockInsts.addInst(condition->blockInsts);
     node->blockInsts.addInst(ifInst);
     node->blockInsts.addInst(gotoEndInst);
-    
+
     // 添加循环体开始标签
     node->blockInsts.addInst(bodyLabelInst);
-    
+
     // 生成循环体的代码
     ast_node * body = ir_visit_ast_node(node->sons[1]);
     if (!body) {
@@ -1376,18 +1366,18 @@ bool IRGenerator::ir_while(ast_node * node)
         }
         return false;
     }
-    
+
     // 添加循环体的代码
     node->blockInsts.addInst(body->blockInsts);
-    
+
     // 循环体结束后跳转回循环开始
-    LabelInstruction* startLabelInst2 = new LabelInstruction(module->getCurrentFunction(), startLabel);
+    LabelInstruction * startLabelInst2 = new LabelInstruction(module->getCurrentFunction(), startLabel);
     GotoInstruction * gotoStartInst = new GotoInstruction(module->getCurrentFunction(), startLabelInst2);
     node->blockInsts.addInst(gotoStartInst);
-    
+
     // 添加循环结束标签
     node->blockInsts.addInst(endLabelInst);
-    
+
     // 恢复之前的循环标签
     whileLabels.pop_back();
     if (!whileLabels.empty()) {
@@ -1397,7 +1387,7 @@ bool IRGenerator::ir_while(ast_node * node)
         currentWhileStartLabel = "";
         currentWhileEndLabel = "";
     }
-    
+
     return true;
 }
 
