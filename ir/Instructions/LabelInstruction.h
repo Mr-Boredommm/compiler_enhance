@@ -26,6 +26,9 @@ class Function;
 /// @brief Label指令
 ///
 class LabelInstruction : public Instruction {
+private:
+    /// @brief 标签名称
+    std::string labelName;
 
 public:
     ///
@@ -33,6 +36,25 @@ public:
     /// @param _func 所属函数
     ///
     explicit LabelInstruction(Function * _func);
+
+    ///
+    /// @brief 带标签名的构造函数
+    /// @param _func 所属函数
+    /// @param _labelName 标签名
+    ///
+    LabelInstruction(Function * _func, const std::string & _labelName);
+
+    ///
+    /// @brief 获取标签名
+    /// @return 标签名
+    ///
+    std::string getLabelName() const;
+
+    ///
+    /// @brief 设置标签名
+    /// @param _labelName 标签名
+    ///
+    void setLabelName(const std::string & _labelName);
 
     ///
     /// @brief 转换成字符串

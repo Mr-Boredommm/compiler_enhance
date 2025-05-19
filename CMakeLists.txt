@@ -156,6 +156,8 @@ set(BACKEND_SRCS
 set(IR_SRCS
 	ir/Generator/IRGenerator.cpp
 	ir/Generator/IRGenerator.h
+	ir/Generator/RelationalOpGenerator.h
+	ir/Generator/RelationalOpGeneratorImpl.cpp
 	ir/Instructions/ArgInstruction.cpp
 	ir/Instructions/ArgInstruction.h
 	ir/Instructions/BinaryInstruction.cpp
@@ -172,6 +174,7 @@ set(IR_SRCS
 	ir/Instructions/LabelInstruction.h
 	ir/Instructions/MoveInstruction.cpp
 	ir/Instructions/MoveInstruction.h
+	ir/Instructions/IfInstruction.h
 	ir/Types/VoidType.h
 	ir/Types/VoidType.cpp
 	ir/Types/LabelType.h

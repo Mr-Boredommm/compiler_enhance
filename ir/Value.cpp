@@ -65,6 +65,24 @@ void Value::setIRName(std::string _name)
     this->IRName = _name;
 }
 
+///
+/// @brief 获取值的唯一标识符
+/// @return 值的唯一标识符
+///
+std::string Value::getValueID() const
+{
+    if (!IRName.empty()) {
+        return IRName;
+    }
+    if (!name.empty()) {
+        return name;
+    }
+    // 返回指针地址作为唯一标识符
+    char buffer[32];
+    snprintf(buffer, sizeof(buffer), "v%p", this);
+    return buffer;
+}
+
 /// @brief 获取类型
 /// @return 变量名
 Type * Value::getType()

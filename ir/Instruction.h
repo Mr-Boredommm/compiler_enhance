@@ -61,6 +61,33 @@ enum class IRInstOperator : std::int8_t {
     /// @brief 实参ARG指令，单目运算
     IRINST_OP_ARG,
 
+    /// @brief 小于比较指令，二元运算
+    IRINST_OP_LT,
+
+    /// @brief 小于等于比较指令，二元运算
+    IRINST_OP_LE,
+
+    /// @brief 大于比较指令，二元运算
+    IRINST_OP_GT,
+
+    /// @brief 大于等于比较指令，二元运算
+    IRINST_OP_GE,
+
+    /// @brief 等于比较指令，二元运算
+    IRINST_OP_EQ,
+
+    /// @brief 不等于比较指令，二元运算
+    IRINST_OP_NE,
+
+    /// @brief 逻辑非指令，一元运算
+    IRINST_OP_NOT,
+
+    /// @brief 条件跳转指令，二元运算 (value, label)
+    IRINST_OP_IF,
+
+    /// @brief 条件跳转指令，二元运算 (value, label) - 条件为假时跳转
+    IRINST_OP_IFNOT,
+
     /* 后续可追加其他的IR指令 */
 
     /// @brief 最大指令码，也是无效指令

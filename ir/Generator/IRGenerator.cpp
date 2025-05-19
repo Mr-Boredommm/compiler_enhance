@@ -33,6 +33,9 @@
 #include "BinaryInstruction.h"
 #include "MoveInstruction.h"
 #include "GotoInstruction.h"
+#include "IfInstruction.h"
+#include "RelationalOpGenerator.h"
+#include "RelationalOpGenerator.h"
 
 /// @brief 构造函数
 /// @param _root AST的根
@@ -51,6 +54,26 @@ IRGenerator::IRGenerator(ast_node * _root, Module * _module) : root(_root), modu
     ast2ir_handlers[ast_operator_type::AST_OP_DIV] = &IRGenerator::ir_div;
     ast2ir_handlers[ast_operator_type::AST_OP_MOD] = &IRGenerator::ir_mod;
     ast2ir_handlers[ast_operator_type::AST_OP_NEG] = &IRGenerator::ir_neg;
+
+    /* 关系运算符 */
+    ast2ir_handlers[ast_operator_type::AST_OP_LT] = &IRGenerator::ir_lt;
+    ast2ir_handlers[ast_operator_type::AST_OP_LE] = &IRGenerator::ir_le;
+    ast2ir_handlers[ast_operator_type::AST_OP_GT] = &IRGenerator::ir_gt;
+    ast2ir_handlers[ast_operator_type::AST_OP_GE] = &IRGenerator::ir_ge;
+    ast2ir_handlers[ast_operator_type::AST_OP_EQ] = &IRGenerator::ir_eq;
+    ast2ir_handlers[ast_operator_type::AST_OP_NE] = &IRGenerator::ir_ne;
+
+    /* 逻辑运算符 */
+    ast2ir_handlers[ast_operator_type::AST_OP_LOGICAL_AND] = &IRGenerator::ir_logical_and;
+    ast2ir_handlers[ast_operator_type::AST_OP_LOGICAL_OR] = &IRGenerator::ir_logical_or;
+    ast2ir_handlers[ast_operator_type::AST_OP_LOGICAL_NOT] = &IRGenerator::ir_logical_not;
+
+    /* 控制流语句 */
+    ast2ir_handlers[ast_operator_type::AST_OP_IF] = &IRGenerator::ir_if;
+    ast2ir_handlers[ast_operator_type::AST_OP_IF_ELSE] = &IRGenerator::ir_if_else;
+    ast2ir_handlers[ast_operator_type::AST_OP_WHILE] = &IRGenerator::ir_while;
+    ast2ir_handlers[ast_operator_type::AST_OP_BREAK] = &IRGenerator::ir_break;
+    ast2ir_handlers[ast_operator_type::AST_OP_CONTINUE] = &IRGenerator::ir_continue;
 
     /* 语句 */
     ast2ir_handlers[ast_operator_type::AST_OP_ASSIGN] = &IRGenerator::ir_assign;
@@ -596,12 +619,12 @@ bool IRGenerator::ir_neg(ast_node * node)
 
     // 创建0常量作为被减数
     ConstInt * zero = module->newConstInt(0);
-    
+
     BinaryInstruction * negInst = new BinaryInstruction(module->getCurrentFunction(),
-                                                      IRInstOperator::IRINST_OP_SUB_I,
-                                                      zero,
-                                                      operand->val,
-                                                      IntegerType::getTypeInt());
+                                                        IRInstOperator::IRINST_OP_SUB_I,
+                                                        zero,
+                                                        operand->val,
+                                                        IntegerType::getTypeInt());
 
     // 创建临时变量保存IR的值，以及线性IR指令
     node->blockInsts.addInst(operand->blockInsts);
@@ -787,4 +810,133 @@ bool IRGenerator::ir_variable_declare(ast_node * node)
     node->val = module->newVarValue(node->sons[0]->type, node->sons[1]->name);
 
     return true;
+}
+
+/// @brief 关系运算符 < 翻译成线性中间IR
+/// @param node AST节点
+/// @return 翻译是否成功，true：成功，false：失败
+bool IRGenerator::ir_lt(ast_node * node)
+{
+    // 委托给RelationalOpGenerator命名空间中的实现
+    return RelationalOpGenerator::rel_lt(node, module);
+}
+
+/// @brief 关系运算符 <= 翻译成线性中间IR
+/// @param node AST节点
+/// @return 翻译是否成功，true：成功，false：失败
+bool IRGenerator::ir_le(ast_node * node)
+{
+    // 委托给RelationalOpGenerator命名空间中的实现
+    return RelationalOpGenerator::rel_le(node, module);
+}
+
+/// @brief 关系运算符 > 翻译成线性中间IR
+/// @param node AST节点
+/// @return 翻译是否成功，true：成功，false：失败
+bool IRGenerator::ir_gt(ast_node * node)
+{
+    // 委托给RelationalOpGenerator命名空间中的实现
+    return RelationalOpGenerator::rel_gt(node, module);
+}
+
+/// @brief 关系运算符 >= 翻译成线性中间IR
+/// @param node AST节点
+/// @return 翻译是否成功，true：成功，false：失败
+bool IRGenerator::ir_ge(ast_node * node)
+{
+    // 委托给RelationalOpGenerator命名空间中的实现
+    return RelationalOpGenerator::rel_ge(node, module);
+}
+
+/// @brief 关系运算符 == 翻译成线性中间IR
+/// @param node AST节点
+/// @return 翻译是否成功，true：成功，false：失败
+bool IRGenerator::ir_eq(ast_node * node)
+{
+    // 委托给RelationalOpGenerator命名空间中的实现
+    return RelationalOpGenerator::rel_eq(node, module);
+}
+
+/// @brief 关系运算符 != 翻译成线性中间IR
+/// @param node AST节点
+/// @return 翻译是否成功，true：成功，false：失败
+bool IRGenerator::ir_ne(ast_node * node)
+{
+    // 委托给RelationalOpGenerator命名空间中的实现
+    return RelationalOpGenerator::rel_ne(node, module);
+}
+
+/// @brief 逻辑与 && 翻译成线性中间IR，实现短路求值
+/// @param node AST节点
+/// @return 翻译是否成功，true：成功，false：失败
+bool IRGenerator::ir_logical_and(ast_node * node)
+{
+    // 委托给RelationalOpGenerator命名空间中的实现
+    return RelationalOpGenerator::rel_logical_and(node, module);
+}
+
+/// @brief 逻辑或 || 翻译成线性中间IR，实现短路求值
+/// @param node AST节点
+/// @return 翻译是否成功，true：成功，false：失败
+bool IRGenerator::ir_logical_or(ast_node * node)
+{
+    // 委托给RelationalOpGenerator命名空间中的实现
+    return RelationalOpGenerator::rel_logical_or(node, module);
+}
+
+/// @brief 逻辑非 ! 翻译成线性中间IR
+/// @param node AST节点
+/// @return 翻译是否成功，true：成功，false：失败
+bool IRGenerator::ir_logical_not(ast_node * node)
+{
+    // 委托给RelationalOpGenerator命名空间中的实现
+    return RelationalOpGenerator::rel_logical_not(node, module);
+}
+
+/// @brief if语句翻译成线性中间IR
+/// @param node AST节点
+/// @return 翻译是否成功，true：成功，false：失败
+bool IRGenerator::ir_if(ast_node * node)
+{
+    // 委托给RelationalOpGenerator命名空间中的实现
+    return RelationalOpGenerator::rel_if(node, module);
+}
+
+/// @brief if-else语句翻译成线性中间IR
+/// @param node AST节点
+/// @return 翻译是否成功，true：成功，false：失败
+bool IRGenerator::ir_if_else(ast_node * node)
+{
+    // 委托给RelationalOpGenerator命名空间中的实现
+    return RelationalOpGenerator::rel_if_else(node, module);
+}
+
+/// @brief while循环语句翻译成线性中间IR
+/// @param node AST节点
+/// @return 翻译是否成功，true：成功，false：失败
+bool IRGenerator::ir_while(ast_node * node)
+{
+    // 此方法的实现在RelationalOpGenerator.cpp中
+    // 直接调用其中的实现
+    return ir_visit_ast_node(node) != nullptr;
+}
+
+/// @brief break语句翻译成线性中间IR
+/// @param node AST节点
+/// @return 翻译是否成功，true：成功，false：失败
+bool IRGenerator::ir_break(ast_node * node)
+{
+    // 此方法的实现在RelationalOpGenerator.cpp中
+    // 直接调用其中的实现
+    return ir_visit_ast_node(node) != nullptr;
+}
+
+/// @brief continue语句翻译成线性中间IR
+/// @param node AST节点
+/// @return 翻译是否成功，true：成功，false：失败
+bool IRGenerator::ir_continue(ast_node * node)
+{
+    // 此方法的实现在RelationalOpGenerator.cpp中
+    // 直接调用其中的实现
+    return ir_visit_ast_node(node) != nullptr;
 }
