@@ -35,7 +35,6 @@
 #include "GotoInstruction.h"
 #include "IfInstruction.h"
 #include "RelationalOpGenerator.h"
-#include "RelationalOpGenerator.h"
 
 /// @brief 构造函数
 /// @param _root AST的根
