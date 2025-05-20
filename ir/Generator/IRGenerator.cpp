@@ -1021,40 +1021,36 @@ bool IRGenerator::ir_logical_and(ast_node * node)
 {
     // 实现短路求值的逻辑与
     // 生成左操作数的代码
-    ast_node * left = ir_visit_ast_node(node->sons[0]);
-    if (!left) {
-        return false;
-    }
 
     // 创建结果临时变量
-    Value * result = module->newVarValue(IntegerType::getTypeInt());
-
-    // 创建跳转标签
-    std::string falseLabel = generate_label();
-    std::string endLabel = generate_label();
-
+    Value * result = module->getCurrentFunction()->getReturnValue();
     // 如果左操作数为假，直接短路，结果为0
-    LabelInstruction * falseLabelInst = new LabelInstruction(module->getCurrentFunction(), falseLabel);
-    std::string secondOpLabel = generate_label();
-    LabelInstruction * secondOpLabelInst = new LabelInstruction(module->getCurrentFunction(), secondOpLabel);
+    LabelInstruction * falseLabelInst =
+        new LabelInstruction(module->getCurrentFunction(), generate_label()); //假的，出去if条件
+    LabelInstruction * trueLabelInst =
+        new LabelInstruction(module->getCurrentFunction(), generate_label()); //假的，出去if条件
+    LabelInstruction * secondOpLabelInst =
+        new LabelInstruction(module->getCurrentFunction(), generate_label()); //第二个位置的入口
+    LabelInstruction * endLabelInst = new LabelInstruction(module->getCurrentFunction(), generate_label()); //结束标签
+    // GotoInstruction * truegotoEnd = new GotoInstruction(module->getCurrentFunction(), endLabelInst);
 
     // 使用新的IcmpInstruction和BcInstruction
     // 先检查左操作数是否为0
+    ast_node * left = ir_visit_ast_node(node->sons[0]); //
+    if (!left) {
+        return false;
+    }
     IcmpInstruction * leftCmpInst = new IcmpInstruction(module->getCurrentFunction(),
                                                         IRInstOperator::IRINST_OP_ICMP,
                                                         left->val,
                                                         module->newConstInt(0),
-                                                        "eq");
+                                                        "ne");
 
     // 如果左操作数为0(false)则跳转到false标签，否则继续执行右操作数
     BcInstruction * bcInst =
-        new BcInstruction(module->getCurrentFunction(), leftCmpInst, falseLabelInst, secondOpLabelInst);
+        new BcInstruction(module->getCurrentFunction(), leftCmpInst, secondOpLabelInst, falseLabelInst);
 
     // 生成右操作数的代码
-    node->blockInsts.addInst(left->blockInsts);
-    node->blockInsts.addInst(leftCmpInst);
-    node->blockInsts.addInst(bcInst);
-    node->blockInsts.addInst(secondOpLabelInst);
 
     ast_node * right = ir_visit_ast_node(node->sons[1]);
     if (!right) {
@@ -1062,10 +1058,16 @@ bool IRGenerator::ir_logical_and(ast_node * node)
     }
 
     // 结果为右操作数的值
-    MoveInstruction * moveInst = new MoveInstruction(module->getCurrentFunction(), result, right->val);
-
+    // MoveInstruction * moveInst = new MoveInstruction(module->getCurrentFunction(), result, right->val);
+    IcmpInstruction * rightCmpInst = new IcmpInstruction(module->getCurrentFunction(),
+                                                         IRInstOperator::IRINST_OP_ICMP,
+                                                         right->val,
+                                                         module->newConstInt(0),
+                                                         "ne");
+    BcInstruction * SecondbcInst =
+        new BcInstruction(module->getCurrentFunction(), rightCmpInst, trueLabelInst, falseLabelInst);
     // 跳转到结束
-    LabelInstruction * endLabelInst = new LabelInstruction(module->getCurrentFunction(), endLabel);
+
     GotoInstruction * gotoEnd = new GotoInstruction(module->getCurrentFunction(), endLabelInst);
 
     // 设置false标签
@@ -1073,20 +1075,31 @@ bool IRGenerator::ir_logical_and(ast_node * node)
 
     // 设置结果为0
     Value * zero = module->newConstInt(0);
+    Value * one = module->newConstInt(1);
     MoveInstruction * setFalse = new MoveInstruction(module->getCurrentFunction(), result, zero);
+    MoveInstruction * setTrue = new MoveInstruction(module->getCurrentFunction(), result, one);
 
     // 设置结束标签
     // endLabelInst已经在前面定义
 
     // 添加指令
+    node->blockInsts.addInst(left->blockInsts);
+    node->blockInsts.addInst(leftCmpInst);       //%t6 = icmp eq %l1, 0
+    node->blockInsts.addInst(bcInst);            // bc %t6, label .L1, label .L3
+    node->blockInsts.addInst(secondOpLabelInst); //.L3:
     node->blockInsts.addInst(right->blockInsts);
-    node->blockInsts.addInst(moveInst);
-    node->blockInsts.addInst(gotoEnd);
-    node->blockInsts.addInst(falseLabelInst);
+    // node->blockInsts.addInst(moveInst);     //%l4 = %l2
+    node->blockInsts.addInst(rightCmpInst); //%t7 = icmp eq %l2, 0
+    node->blockInsts.addInst(SecondbcInst); // bc %t7, label .L1, label .L4
+    node->blockInsts.addInst(trueLabelInst);
+    node->blockInsts.addInst(setTrue);        //%l4 = 1
+    node->blockInsts.addInst(gotoEnd);        // br label .L9
+    node->blockInsts.addInst(falseLabelInst); //.L1:
     node->blockInsts.addInst(setFalse);
-    node->blockInsts.addInst(endLabelInst);
+    node->blockInsts.addInst(gotoEnd);      //%l4 = 0
+    node->blockInsts.addInst(endLabelInst); //.L2:
 
-    node->val = result;
+    node->val = endLabelInst;
 
     return true;
 }
@@ -1203,6 +1216,7 @@ bool IRGenerator::ir_if(ast_node * node)
     // 2. 如果条件为真执行的语句（可能是语句块）
 
     // 生成条件表达式的代码
+    Value * result = module->getCurrentFunction()->getReturnValue();
     ast_node * condition = ir_visit_ast_node(node->sons[0]);
     if (!condition) {
         return false;
@@ -1217,11 +1231,11 @@ bool IRGenerator::ir_if(ast_node * node)
     LabelInstruction * endLabelInst = new LabelInstruction(module->getCurrentFunction(), endLabel);
 
     // 使用新的BcInstruction替代IfInstruction
-    BcInstruction * bcInst =
-        new BcInstruction(module->getCurrentFunction(), condition->val, thenLabelInst, endLabelInst);
+    BcInstruction * bcInst = new BcInstruction(module->getCurrentFunction(), result, thenLabelInst, endLabelInst);
 
     // 添加条件和跳转指令
     node->blockInsts.addInst(condition->blockInsts);
+    // node->blockInsts.addInst(condition->va);
     node->blockInsts.addInst(bcInst);
 
     // 添加真分支标签

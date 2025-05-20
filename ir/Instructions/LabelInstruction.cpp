@@ -34,12 +34,12 @@ LabelInstruction::LabelInstruction(Function * _func, const std::string & _labelN
     : Instruction(_func, IRInstOperator::IRINST_OP_LABEL, VoidType::getType())
 {
     // 确保标签名格式一致（以点开头）
-    std::string formattedName = _labelName;
-    if (!formattedName.empty() && formattedName[0] != '.') {
-        formattedName = "." + formattedName;
-    }
-    this->IRName = formattedName;    // 设置IRName为格式化后的标签名
-    this->labelName = formattedName; // 更新labelName
+    // std::string formattedName = _labelName;
+    // if (!formattedName.empty() && formattedName[0] != '.') {
+    //     formattedName = "." + formattedName;
+    // }
+    // this->IRName = formattedName;    // 设置IRName为格式化后的标签名
+    // this->labelName = formattedName; // 更新labelName
 }
 
 ///
