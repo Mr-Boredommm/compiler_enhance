@@ -407,6 +407,8 @@ set(CPACK_SOURCE_IGNORE_FILES
 	"/.vs/;" # visual studio
 	"/.vscode/;" # vscode
 	"/.cache/;" # cache
+	"/function/;" # function
+	"/thirdparty/;" # 第三方库
 )
 
 # 二进制打包
