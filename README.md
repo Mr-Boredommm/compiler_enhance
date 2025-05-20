@@ -52,6 +52,11 @@ cpack --config CPackSourceConfig.cmake
 
 将项目打包为zip文件。
 
+./tools/IRCompiler/Linux-x86_64/Ubuntu-22.04/IRCompiler -R 000_main.ir
+
+echo $?
+ir直接执行
+
 
 ## 1.1. 编译器的功能（原版）
 
