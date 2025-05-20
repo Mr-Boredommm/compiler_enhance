@@ -35,6 +35,8 @@
 #include "MoveInstruction.h"
 #include "GotoInstruction.h"
 #include "IfInstruction.h"
+#include "IcmpInstruction.h"
+#include "BcInstruction.h"
 #include "RelationalOpGenerator.h"
 
 /// @brief 生成IR标签名称的计数器
@@ -841,11 +843,8 @@ bool IRGenerator::ir_lt(ast_node * node)
     }
 
     // 创建比较指令，结果为0或1
-    BinaryInstruction * ltInst = new BinaryInstruction(module->getCurrentFunction(),
-                                                       IRInstOperator::IRINST_OP_LT,
-                                                       left->val,
-                                                       right->val,
-                                                       IntegerType::getTypeInt());
+    IcmpInstruction * ltInst =
+        new IcmpInstruction(module->getCurrentFunction(), IRInstOperator::IRINST_OP_ICMP, left->val, right->val, "lt");
 
     // 添加到当前节点的指令列表
     node->blockInsts.addInst(left->blockInsts);
@@ -875,11 +874,8 @@ bool IRGenerator::ir_le(ast_node * node)
     }
 
     // 创建比较指令，结果为0或1
-    BinaryInstruction * leInst = new BinaryInstruction(module->getCurrentFunction(),
-                                                       IRInstOperator::IRINST_OP_LE,
-                                                       left->val,
-                                                       right->val,
-                                                       IntegerType::getTypeInt());
+    IcmpInstruction * leInst =
+        new IcmpInstruction(module->getCurrentFunction(), IRInstOperator::IRINST_OP_ICMP, left->val, right->val, "le");
 
     // 添加到当前节点的指令列表
     node->blockInsts.addInst(left->blockInsts);
@@ -909,11 +905,8 @@ bool IRGenerator::ir_gt(ast_node * node)
     }
 
     // 创建比较指令，结果为0或1
-    BinaryInstruction * gtInst = new BinaryInstruction(module->getCurrentFunction(),
-                                                       IRInstOperator::IRINST_OP_GT,
-                                                       left->val,
-                                                       right->val,
-                                                       IntegerType::getTypeInt());
+    IcmpInstruction * gtInst =
+        new IcmpInstruction(module->getCurrentFunction(), IRInstOperator::IRINST_OP_ICMP, left->val, right->val, "gt");
 
     // 添加到当前节点的指令列表
     node->blockInsts.addInst(left->blockInsts);
@@ -943,11 +936,8 @@ bool IRGenerator::ir_ge(ast_node * node)
     }
 
     // 创建比较指令，结果为0或1
-    BinaryInstruction * geInst = new BinaryInstruction(module->getCurrentFunction(),
-                                                       IRInstOperator::IRINST_OP_GE,
-                                                       left->val,
-                                                       right->val,
-                                                       IntegerType::getTypeInt());
+    IcmpInstruction * geInst =
+        new IcmpInstruction(module->getCurrentFunction(), IRInstOperator::IRINST_OP_ICMP, left->val, right->val, "ge");
 
     // 添加到当前节点的指令列表
     node->blockInsts.addInst(left->blockInsts);
@@ -977,11 +967,8 @@ bool IRGenerator::ir_eq(ast_node * node)
     }
 
     // 创建比较指令，结果为0或1
-    BinaryInstruction * eqInst = new BinaryInstruction(module->getCurrentFunction(),
-                                                       IRInstOperator::IRINST_OP_EQ,
-                                                       left->val,
-                                                       right->val,
-                                                       IntegerType::getTypeInt());
+    IcmpInstruction * eqInst =
+        new IcmpInstruction(module->getCurrentFunction(), IRInstOperator::IRINST_OP_ICMP, left->val, right->val, "eq");
 
     // 添加到当前节点的指令列表
     node->blockInsts.addInst(left->blockInsts);
@@ -1011,11 +998,8 @@ bool IRGenerator::ir_ne(ast_node * node)
     }
 
     // 创建比较指令，结果为0或1
-    BinaryInstruction * neInst = new BinaryInstruction(module->getCurrentFunction(),
-                                                       IRInstOperator::IRINST_OP_NE,
-                                                       left->val,
-                                                       right->val,
-                                                       IntegerType::getTypeInt());
+    IcmpInstruction * neInst =
+        new IcmpInstruction(module->getCurrentFunction(), IRInstOperator::IRINST_OP_ICMP, left->val, right->val, "ne");
 
     // 添加到当前节点的指令列表
     node->blockInsts.addInst(left->blockInsts);
@@ -1049,10 +1033,27 @@ bool IRGenerator::ir_logical_and(ast_node * node)
 
     // 如果左操作数为假，直接短路，结果为0
     LabelInstruction * falseLabelInst = new LabelInstruction(module->getCurrentFunction(), falseLabel);
-    IfInstruction * ifInst =
-        new IfInstruction(module->getCurrentFunction(), IRInstOperator::IRINST_OP_IFNOT, left->val, falseLabelInst);
+    std::string secondOpLabel = generate_label();
+    LabelInstruction * secondOpLabelInst = new LabelInstruction(module->getCurrentFunction(), secondOpLabel);
+
+    // 使用新的IcmpInstruction和BcInstruction
+    // 先检查左操作数是否为0
+    IcmpInstruction * leftCmpInst = new IcmpInstruction(module->getCurrentFunction(),
+                                                        IRInstOperator::IRINST_OP_ICMP,
+                                                        left->val,
+                                                        module->newConstInt(0),
+                                                        "eq");
+
+    // 如果左操作数为0(false)则跳转到false标签，否则继续执行右操作数
+    BcInstruction * bcInst =
+        new BcInstruction(module->getCurrentFunction(), leftCmpInst, falseLabelInst, secondOpLabelInst);
 
     // 生成右操作数的代码
+    node->blockInsts.addInst(left->blockInsts);
+    node->blockInsts.addInst(leftCmpInst);
+    node->blockInsts.addInst(bcInst);
+    node->blockInsts.addInst(secondOpLabelInst);
+
     ast_node * right = ir_visit_ast_node(node->sons[1]);
     if (!right) {
         return false;
@@ -1076,8 +1077,6 @@ bool IRGenerator::ir_logical_and(ast_node * node)
     // endLabelInst已经在前面定义
 
     // 添加指令
-    node->blockInsts.addInst(left->blockInsts);
-    node->blockInsts.addInst(ifInst);
     node->blockInsts.addInst(right->blockInsts);
     node->blockInsts.addInst(moveInst);
     node->blockInsts.addInst(gotoEnd);
@@ -1111,8 +1110,26 @@ bool IRGenerator::ir_logical_or(ast_node * node)
 
     // 如果左操作数为真，直接短路，结果为1
     LabelInstruction * trueLabelInst = new LabelInstruction(module->getCurrentFunction(), trueLabel);
-    IfInstruction * ifInst =
-        new IfInstruction(module->getCurrentFunction(), IRInstOperator::IRINST_OP_IF, left->val, trueLabelInst);
+    std::string secondOpLabel = generate_label();
+    LabelInstruction * secondOpLabelInst = new LabelInstruction(module->getCurrentFunction(), secondOpLabel);
+
+    // 使用新的IcmpInstruction和BcInstruction
+    // 先检查左操作数是否不为0
+    IcmpInstruction * leftCmpInst = new IcmpInstruction(module->getCurrentFunction(),
+                                                        IRInstOperator::IRINST_OP_ICMP,
+                                                        left->val,
+                                                        module->newConstInt(0),
+                                                        "ne");
+
+    // 如果左操作数不为0(true)则跳转到true标签，否则继续执行右操作数
+    BcInstruction * bcInst =
+        new BcInstruction(module->getCurrentFunction(), leftCmpInst, trueLabelInst, secondOpLabelInst);
+
+    // 生成指令
+    node->blockInsts.addInst(left->blockInsts);
+    node->blockInsts.addInst(leftCmpInst);
+    node->blockInsts.addInst(bcInst);
+    node->blockInsts.addInst(secondOpLabelInst);
 
     // 生成右操作数的代码
     ast_node * right = ir_visit_ast_node(node->sons[1]);
@@ -1138,9 +1155,6 @@ bool IRGenerator::ir_logical_or(ast_node * node)
     // endLabelInst已经在前面定义
 
     // 添加指令
-    node->blockInsts.addInst(left->blockInsts);
-    node->blockInsts.addInst(ifInst);
-    node->blockInsts.addInst(right->blockInsts);
     node->blockInsts.addInst(moveInst);
     node->blockInsts.addInst(gotoEnd);
     node->blockInsts.addInst(trueLabelInst);
@@ -1165,11 +1179,8 @@ bool IRGenerator::ir_logical_not(ast_node * node)
 
     // 创建比较指令，将操作数与0比较
     Value * zero = module->newConstInt(0);
-    BinaryInstruction * eqInst = new BinaryInstruction(module->getCurrentFunction(),
-                                                       IRInstOperator::IRINST_OP_EQ,
-                                                       operand->val,
-                                                       zero,
-                                                       IntegerType::getTypeInt());
+    IcmpInstruction * eqInst =
+        new IcmpInstruction(module->getCurrentFunction(), IRInstOperator::IRINST_OP_ICMP, operand->val, zero, "eq");
 
     // 添加指令
     node->blockInsts.addInst(operand->blockInsts);
@@ -1202,14 +1213,14 @@ bool IRGenerator::ir_if(ast_node * node)
     // 条件为真则跳转到thenLabel，否则跳转到endLabel
     LabelInstruction * thenLabelInst = new LabelInstruction(module->getCurrentFunction(), thenLabel);
     LabelInstruction * endLabelInst = new LabelInstruction(module->getCurrentFunction(), endLabel);
-    IfInstruction * ifInst =
-        new IfInstruction(module->getCurrentFunction(), IRInstOperator::IRINST_OP_IF, condition->val, thenLabelInst);
-    GotoInstruction * gotoEndInst = new GotoInstruction(module->getCurrentFunction(), endLabelInst);
+
+    // 使用新的BcInstruction替代IfInstruction
+    BcInstruction * bcInst =
+        new BcInstruction(module->getCurrentFunction(), condition->val, thenLabelInst, endLabelInst);
 
     // 添加条件和跳转指令
     node->blockInsts.addInst(condition->blockInsts);
-    node->blockInsts.addInst(ifInst);
-    node->blockInsts.addInst(gotoEndInst);
+    node->blockInsts.addInst(bcInst);
 
     // 添加真分支标签
     node->blockInsts.addInst(thenLabelInst);
@@ -1255,14 +1266,13 @@ bool IRGenerator::ir_if_else(ast_node * node)
     LabelInstruction * elseLabelInst = new LabelInstruction(module->getCurrentFunction(), elseLabel);
     LabelInstruction * endLabelInst = new LabelInstruction(module->getCurrentFunction(), endLabel);
 
-    IfInstruction * ifInst =
-        new IfInstruction(module->getCurrentFunction(), IRInstOperator::IRINST_OP_IF, condition->val, thenLabelInst);
-    GotoInstruction * gotoElseInst = new GotoInstruction(module->getCurrentFunction(), elseLabelInst);
+    // 使用新的BcInstruction替代IfInstruction和GotoInstruction
+    BcInstruction * bcInst =
+        new BcInstruction(module->getCurrentFunction(), condition->val, thenLabelInst, elseLabelInst);
 
     // 添加条件和跳转指令
     node->blockInsts.addInst(condition->blockInsts);
-    node->blockInsts.addInst(ifInst);
-    node->blockInsts.addInst(gotoElseInst);
+    node->blockInsts.addInst(bcInst);
 
     // 添加真分支标签
     node->blockInsts.addInst(thenLabelInst);
@@ -1341,14 +1351,13 @@ bool IRGenerator::ir_while(ast_node * node)
     LabelInstruction * bodyLabelInst = new LabelInstruction(module->getCurrentFunction(), bodyLabel);
     LabelInstruction * endLabelInst = new LabelInstruction(module->getCurrentFunction(), endLabel);
 
-    IfInstruction * ifInst =
-        new IfInstruction(module->getCurrentFunction(), IRInstOperator::IRINST_OP_IF, condition->val, bodyLabelInst);
-    GotoInstruction * gotoEndInst = new GotoInstruction(module->getCurrentFunction(), endLabelInst);
+    // 使用新的BcInstruction替代IfInstruction和GotoInstruction
+    BcInstruction * bcInst =
+        new BcInstruction(module->getCurrentFunction(), condition->val, bodyLabelInst, endLabelInst);
 
     // 添加条件和跳转指令
     node->blockInsts.addInst(condition->blockInsts);
-    node->blockInsts.addInst(ifInst);
-    node->blockInsts.addInst(gotoEndInst);
+    node->blockInsts.addInst(bcInst);
 
     // 添加循环体开始标签
     node->blockInsts.addInst(bodyLabelInst);

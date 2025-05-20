@@ -33,6 +33,7 @@ public:
         VoidTyID,  ///< type with no size
         LabelTyID, ///< Labels
         TokenTyID, ///< Tokens
+        BoolTyID,  ///< 1-bit boolean type
 
         // Derived types
         IntegerTyID,  ///< Arbitrary bit width integers

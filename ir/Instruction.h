@@ -61,6 +61,12 @@ enum class IRInstOperator : std::int8_t {
     /// @brief 实参ARG指令，单目运算
     IRINST_OP_ARG,
 
+    /// @brief 条件比较指令，二元运算
+    IRINST_OP_ICMP,
+
+    /// @brief 条件分支指令，基于条件跳转到不同标签
+    IRINST_OP_BC,
+
     /// @brief 小于比较指令，二元运算
     IRINST_OP_LT,
 

@@ -175,12 +175,19 @@ set(IR_SRCS
 	ir/Instructions/MoveInstruction.cpp
 	ir/Instructions/MoveInstruction.h
 	ir/Instructions/IfInstruction.h
+	ir/Instructions/IfInstruction.cpp
+	ir/Instructions/IcmpInstruction.h
+	ir/Instructions/IcmpInstruction.cpp
+	ir/Instructions/BcInstruction.h
+	ir/Instructions/BcInstruction.cpp
 	ir/Types/VoidType.h
 	ir/Types/VoidType.cpp
 	ir/Types/LabelType.h
 	ir/Types/LabelType.cpp
 	ir/Types/IntegerType.h
 	ir/Types/IntegerType.cpp
+	ir/Types/BoolType.h
+	ir/Types/BoolType.cpp
 	ir/Values/ConstInt.h
 	ir/Values/FormalParam.h
 	ir/Values/GlobalVariable.h

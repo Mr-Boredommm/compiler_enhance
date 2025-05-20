@@ -17,6 +17,7 @@
 #pragma once
 
 #include "Instruction.h"
+#include "LabelInstruction.h"
 
 ///
 /// @brief 条件跳转指令
@@ -67,20 +68,26 @@ public:
     /// @brief 转换成字符串
     void toString(std::string & str) override
     {
-        str += "if";
+        // 不再生成自己的IR格式，而是直接使用"if"或"ifnot"
         if (isNotCondition) {
-            str += "not";
+            str += "ifnot ";
+        } else {
+            str += "if ";
         }
-        str += " ";
 
         // 获取操作数信息
         Value * op = getOperand(0);
-        str += op->getValueID(); // 使用getValueID()代替toString()
+        str += op->getValueID();
 
-        str += " goto ";
-
-        std::string labelStr;
-        targetLabel->toString(labelStr);
-        str += labelStr;
+        // 获取目标标签名称
+        auto * labelInst = dynamic_cast<LabelInstruction *>(targetLabel);
+        if (labelInst) {
+            // 获取标签ID，不应该包含冒号
+            std::string labelID = labelInst->getValueID();
+            str += " goto " + labelID;
+        } else {
+            // 非LabelInstruction类型，这是一个严重的错误
+            str += " goto Unknown";
+        }
     }
 };
