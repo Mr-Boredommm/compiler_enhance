@@ -1023,7 +1023,7 @@ bool IRGenerator::ir_logical_and(ast_node * node)
     // 生成左操作数的代码
 
     // 创建结果临时变量
-    Value * result = module->getCurrentFunction()->getReturnValue();
+    Value * result = module->newVarValue(IntegerType::getTypeInt());
     // 如果左操作数为假，直接短路，结果为0
     LabelInstruction * falseLabelInst =
         new LabelInstruction(module->getCurrentFunction(), generate_label()); //假的，出去if条件
@@ -1099,7 +1099,7 @@ bool IRGenerator::ir_logical_and(ast_node * node)
     node->blockInsts.addInst(gotoEnd);      //%l4 = 0
     node->blockInsts.addInst(endLabelInst); //.L2:
 
-    node->val = endLabelInst;
+    node->val = result;
 
     return true;
 }
@@ -1152,8 +1152,15 @@ bool IRGenerator::ir_logical_or(ast_node * node)
         return false;
     }
 
-    // 结果为右操作数的值
-    MoveInstruction * moveInst = new MoveInstruction(module->getCurrentFunction(), result, right->val);
+    // 检查右操作数是否不为0
+    IcmpInstruction * rightCmpInst = new IcmpInstruction(module->getCurrentFunction(),
+                                                         IRInstOperator::IRINST_OP_ICMP,
+                                                         right->val,
+                                                         module->newConstInt(0),
+                                                         "ne");
+
+    // 根据右操作数的结果设置result
+    MoveInstruction * moveInst = new MoveInstruction(module->getCurrentFunction(), result, rightCmpInst);
 
     // 跳转到结束
     LabelInstruction * endLabelInst = new LabelInstruction(module->getCurrentFunction(), endLabel);
@@ -1216,7 +1223,6 @@ bool IRGenerator::ir_if(ast_node * node)
     // 2. 如果条件为真执行的语句（可能是语句块）
 
     // 生成条件表达式的代码
-    Value * result = module->getCurrentFunction()->getReturnValue();
     ast_node * condition = ir_visit_ast_node(node->sons[0]);
     if (!condition) {
         return false;
@@ -1231,7 +1237,8 @@ bool IRGenerator::ir_if(ast_node * node)
     LabelInstruction * endLabelInst = new LabelInstruction(module->getCurrentFunction(), endLabel);
 
     // 使用新的BcInstruction替代IfInstruction
-    BcInstruction * bcInst = new BcInstruction(module->getCurrentFunction(), result, thenLabelInst, endLabelInst);
+    BcInstruction * bcInst =
+        new BcInstruction(module->getCurrentFunction(), condition->val, thenLabelInst, endLabelInst);
 
     // 添加条件和跳转指令
     node->blockInsts.addInst(condition->blockInsts);

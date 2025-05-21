@@ -22,7 +22,7 @@
 /// @param _func 所属函数
 ///
 LabelInstruction::LabelInstruction(Function * _func)
-    : Instruction(_func, IRInstOperator::IRINST_OP_LABEL, VoidType::getType()), labelName("")
+    : Instruction(_func, IRInstOperator::IRINST_OP_LABEL, VoidType::getType())
 {}
 
 ///
@@ -33,56 +33,12 @@ LabelInstruction::LabelInstruction(Function * _func)
 LabelInstruction::LabelInstruction(Function * _func, const std::string & _labelName)
     : Instruction(_func, IRInstOperator::IRINST_OP_LABEL, VoidType::getType())
 {
-    // 确保标签名格式一致（以点开头）
-    // std::string formattedName = _labelName;
-    // if (!formattedName.empty() && formattedName[0] != '.') {
-    //     formattedName = "." + formattedName;
-    // }
-    // this->IRName = formattedName;    // 设置IRName为格式化后的标签名
-    // this->labelName = formattedName; // 更新labelName
-}
-
-///
-/// @brief 获取标签名
-/// @return 标签名
-///
-std::string LabelInstruction::getLabelName() const
-{
-    return labelName;
-}
-
-///
-/// @brief 设置标签名
-/// @param _labelName 标签名
-///
-void LabelInstruction::setLabelName(const std::string & _labelName)
-{
-    labelName = _labelName;
-    this->IRName = _labelName; // 同时更新IRName
+    IRName = _labelName;
 }
 
 /// @brief 转换成字符串
 /// @param str 返回指令字符串
 void LabelInstruction::toString(std::string & str)
 {
-    std::string name;
-
-    // 首先尝试使用labelName，如果为空则使用IRName
-    if (!labelName.empty()) {
-        name = labelName;
-    } else if (!IRName.empty()) {
-        name = IRName;
-    } else {
-        // 如果两者都为空，生成一个唯一的标签名
-        static int uniqueLabelCount = 0;
-        name = ".L" + std::to_string(uniqueLabelCount++);
-    }
-
-    // 确保标签以点开头
-    if (!name.empty() && name[0] != '.') {
-        name = "." + name;
-    }
-
-    // 在生成的IR中，标签行应该包含标签名和冒号
-    str = name + ":";
+    str = IRName + ":";
 }
