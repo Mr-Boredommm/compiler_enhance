@@ -77,13 +77,13 @@ public:
 
         // 获取操作数信息
         Value * op = getOperand(0);
-        str += op->getValueID();
+        str += op->getIRName();
 
         // 获取目标标签名称
         auto * labelInst = dynamic_cast<LabelInstruction *>(targetLabel);
         if (labelInst) {
             // 获取标签ID，不应该包含冒号
-            std::string labelID = labelInst->getValueID();
+            std::string labelID = labelInst->getIRName();
             str += " goto " + labelID;
         } else {
             // 非LabelInstruction类型，这是一个严重的错误

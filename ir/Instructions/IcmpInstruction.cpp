@@ -22,5 +22,5 @@ void IcmpInstruction::toString(std::string & str)
     Value * left = getLeft();
     Value * right = getRight();
 
-    str = getValueID() + " = icmp " + cmpType + " " + left->getIRName() + ", " + right->getIRName();
+    str = getIRName() + " = icmp " + cmpType + " " + left->getIRName() + ", " + right->getIRName();
 }

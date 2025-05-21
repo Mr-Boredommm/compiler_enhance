@@ -42,3 +42,12 @@ void LabelInstruction::toString(std::string & str)
 {
     str = IRName + ":";
 }
+
+std::string LabelInstruction::getValueID() const
+{
+    std::string name = getIRName();
+    if (!name.empty() && name[0] != '.') {
+        return "." + name;
+    }
+    return name;
+}

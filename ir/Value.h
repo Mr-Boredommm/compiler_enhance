@@ -80,7 +80,7 @@ public:
     /// @brief 获取值的唯一标识符
     /// @return 值的唯一标识符
     ///
-    [[nodiscard]] virtual std::string getValueID() const;
+    //[[nodiscard]] virtual std::string getValueID() const;
 
     /// @brief 获取类型
     /// @return 变量名
