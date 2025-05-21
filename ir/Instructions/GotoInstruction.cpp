@@ -44,3 +44,21 @@ LabelInstruction * GotoInstruction::getTarget() const
 {
     return target;
 }
+
+///
+/// @brief 获取目标标签的名称
+/// @return 标签名称
+///
+std::string GotoInstruction::getLabelName() const
+{
+    return target->getName();
+}
+
+///
+/// @brief 设置新的跳转目标
+/// @param _target 新的目标Label指令
+///
+void GotoInstruction::setTarget(LabelInstruction * _target)
+{
+    target = _target;
+}

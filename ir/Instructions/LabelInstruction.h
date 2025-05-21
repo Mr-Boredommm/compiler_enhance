@@ -48,4 +48,8 @@ public:
     void toString(std::string & str) override;
 
     [[nodiscard]] std::string getValueID() const;
+
+    /// @brief 获取标签名称
+    /// @return 标签名称
+    [[nodiscard]] std::string getName() const override;
 };

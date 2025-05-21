@@ -51,3 +51,8 @@ std::string LabelInstruction::getValueID() const
     }
     return name;
 }
+
+std::string LabelInstruction::getName() const
+{
+    return getIRName();
+}

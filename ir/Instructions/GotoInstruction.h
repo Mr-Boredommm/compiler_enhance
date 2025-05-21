@@ -43,6 +43,14 @@ public:
     ///
     [[nodiscard]] LabelInstruction * getTarget() const;
 
+    /// @brief 获取目标标签的名称
+    /// @return 标签名称
+    [[nodiscard]] std::string getLabelName() const;
+
+    /// @brief 设置新的跳转目标
+    /// @param _target 新的目标Label指令
+    void setTarget(LabelInstruction * _target);
+
 private:
     ///
     /// @brief 跳转到的目标Label指令
