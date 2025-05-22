@@ -54,7 +54,8 @@ static std::string generate_label()
 /// @brief 构造函数
 /// @param _root AST的根
 /// @param _module 符号表
-IRGenerator::IRGenerator(ast_node * _root, Module * _module) : root(_root), module(_module)
+IRGenerator::IRGenerator(ast_node * _root, Module * _module)
+    : root(_root), module(_module), currentWhileStartLabelInst(nullptr), currentWhileEndLabelInst(nullptr)
 {
     /* 叶子节点 */
     ast2ir_handlers[ast_operator_type::AST_OP_LEAF_LITERAL_UINT] = &IRGenerator::ir_leaf_node_uint;
@@ -1336,10 +1337,6 @@ bool IRGenerator::ir_if_else(ast_node * node)
 /// @return 翻译是否成功，true：成功，false：失败
 bool IRGenerator::ir_while(ast_node * node)
 {
-    // while循环包含两个子节点：
-    // 1. 条件表达式
-    // 2. 循环体（可能是语句块）
-
     // 获取当前函数
     Function * func = module->getCurrentFunction();
     if (!func) {
@@ -1355,6 +1352,10 @@ bool IRGenerator::ir_while(ast_node * node)
     std::string savedCurrentWhileStartLabel = currentWhileStartLabel;
     std::string savedCurrentWhileEndLabel = currentWhileEndLabel;
 
+    // 保存当前的循环标签指令
+    LabelInstruction * savedCurrentWhileStartLabelInst = currentWhileStartLabelInst;
+    LabelInstruction * savedCurrentWhileEndLabelInst = currentWhileEndLabelInst;
+
     // 保存之前的循环标签（如果有嵌套循环）
     whileLabels.push_back({startLabel, endLabel});
 
@@ -1366,43 +1367,44 @@ bool IRGenerator::ir_while(ast_node * node)
     LabelInstruction * startLabelInst = new LabelInstruction(func, startLabel);
     node->blockInsts.addInst(startLabelInst);
 
+    // 保存循环开始标签指令
+    currentWhileStartLabelInst = startLabelInst;
+
     // 生成条件表达式的代码
     ast_node * condition = ir_visit_ast_node(node->sons[0]);
     if (!condition) {
         // 错误处理
         whileLabels.pop_back();
-        // 恢复之前保存的循环标签
         currentWhileStartLabel = savedCurrentWhileStartLabel;
         currentWhileEndLabel = savedCurrentWhileEndLabel;
         return false;
     }
 
-    // 条件为真则跳转到bodyLabel，否则跳转到endLabel
+    // 条件为真则跳转到 bodyLabel，否则跳转到 endLabel
     LabelInstruction * bodyLabelInst = new LabelInstruction(func, bodyLabel);
     LabelInstruction * endLabelInst = new LabelInstruction(func, endLabel);
 
-    // 使用新的BcInstruction替代IfInstruction和GotoInstruction
+    // 保存循环结束标签指令
+    currentWhileEndLabelInst = endLabelInst;
+
+    // 保存标签指令对
+    whileLabelInsts.push_back({startLabelInst, endLabelInst});
+
     BcInstruction * bcInst = new BcInstruction(func, condition->val, bodyLabelInst, endLabelInst);
 
-    // 添加条件和跳转指令
     node->blockInsts.addInst(condition->blockInsts);
     node->blockInsts.addInst(bcInst);
-
-    // 添加循环体开始标签
     node->blockInsts.addInst(bodyLabelInst);
 
     // 生成循环体的代码
     ast_node * body = ir_visit_ast_node(node->sons[1]);
     if (!body) {
-        // 错误处理
         whileLabels.pop_back();
-        // 恢复之前保存的循环标签
         currentWhileStartLabel = savedCurrentWhileStartLabel;
         currentWhileEndLabel = savedCurrentWhileEndLabel;
         return false;
     }
 
-    // 添加循环体的代码
     node->blockInsts.addInst(body->blockInsts);
 
     // 循环体结束后跳转回循环开始（条件检查）
@@ -1414,9 +1416,11 @@ bool IRGenerator::ir_while(ast_node * node)
 
     // 恢复之前的循环标签
     whileLabels.pop_back();
-    // 恢复上一层循环的标签
+    whileLabelInsts.pop_back();
     currentWhileStartLabel = savedCurrentWhileStartLabel;
     currentWhileEndLabel = savedCurrentWhileEndLabel;
+    currentWhileStartLabelInst = savedCurrentWhileStartLabelInst;
+    currentWhileEndLabelInst = savedCurrentWhileEndLabelInst;
 
     return true;
 }
@@ -1433,14 +1437,13 @@ bool IRGenerator::ir_break(ast_node * node)
     }
 
     // 检查是否在循环内
-    if (whileLabels.empty() || currentWhileEndLabel.empty()) {
+    if (whileLabels.empty() || currentWhileEndLabelInst == nullptr) {
         minic_log(LOG_ERROR, "break语句只能用于while循环内");
         return false;
     }
 
-    // 无条件跳转到当前循环的结束标签
-    LabelInstruction * endLabelInst = new LabelInstruction(func, currentWhileEndLabel);
-    GotoInstruction * gotoEndInst = new GotoInstruction(func, endLabelInst);
+    // 使用已存在的循环结束标签指令，而不是创建新的
+    GotoInstruction * gotoEndInst = new GotoInstruction(func, currentWhileEndLabelInst);
     node->blockInsts.addInst(gotoEndInst);
 
     return true;
@@ -1458,14 +1461,13 @@ bool IRGenerator::ir_continue(ast_node * node)
     }
 
     // 检查是否在循环内
-    if (whileLabels.empty() || currentWhileStartLabel.empty()) {
+    if (whileLabels.empty() || currentWhileStartLabelInst == nullptr) {
         minic_log(LOG_ERROR, "continue语句只能用于while循环内");
         return false;
     }
 
     // 无条件跳转到当前循环的开始标签
-    LabelInstruction * startLabelInst = new LabelInstruction(func, currentWhileStartLabel);
-    GotoInstruction * gotoStartInst = new GotoInstruction(func, startLabelInst);
+    GotoInstruction * gotoStartInst = new GotoInstruction(func, currentWhileStartLabelInst);
     node->blockInsts.addInst(gotoStartInst);
 
     return true;

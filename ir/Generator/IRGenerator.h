@@ -20,6 +20,7 @@
 
 #include "AST.h"
 #include "Module.h"
+#include "LabelInstruction.h"
 
 /// @brief AST遍历产生线性IR类
 class IRGenerator {
@@ -231,6 +232,15 @@ private:
     /// @brief 当前处理的while循环的结束标签
     std::string currentWhileEndLabel;
 
+    /// @brief 当前循环的开始标签指令
+    LabelInstruction * currentWhileStartLabelInst;
+
+    /// @brief 当前循环的结束标签指令
+    LabelInstruction * currentWhileEndLabelInst;
+
     /// @brief while循环嵌套层级
     std::vector<std::pair<std::string, std::string>> whileLabels;
+
+    /// @brief while循环嵌套层级的标签指令
+    std::vector<std::pair<LabelInstruction *, LabelInstruction *>> whileLabelInsts;
 };
