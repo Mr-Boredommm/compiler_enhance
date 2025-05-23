@@ -634,13 +634,27 @@ bool IRGenerator::ir_neg(ast_node * node)
         return false;
     }
 
+    // 如果操作数类型是i1（布尔类型），需要先转换为i32类型
+    Value * operand_val = operand->val;
+    Value * int_operand = operand_val;
+
+    // 检查操作数是否是IcmpInstruction的结果（i1类型）
+    auto icmpInst = dynamic_cast<IcmpInstruction *>(operand_val);
+    if (icmpInst != nullptr) {
+        // 如果是，创建一个临时变量将i1转换为i32
+        Value * temp = module->newVarValue(IntegerType::getTypeInt());
+        MoveInstruction * moveInst = new MoveInstruction(module->getCurrentFunction(), temp, operand_val);
+        node->blockInsts.addInst(moveInst);
+        int_operand = temp;
+    }
+
     // 创建0常量作为被减数
     ConstInt * zero = module->newConstInt(0);
 
     BinaryInstruction * negInst = new BinaryInstruction(module->getCurrentFunction(),
                                                         IRInstOperator::IRINST_OP_SUB_I,
                                                         zero,
-                                                        operand->val,
+                                                        int_operand,
                                                         IntegerType::getTypeInt());
 
     // 创建临时变量保存IR的值，以及线性IR指令
@@ -1205,11 +1219,18 @@ bool IRGenerator::ir_logical_not(ast_node * node)
     IcmpInstruction * eqInst =
         new IcmpInstruction(module->getCurrentFunction(), IRInstOperator::IRINST_OP_ICMP, operand->val, zero, "eq");
 
+    // 创建临时变量，将i1类型的结果转换为i32类型
+    Value * result = module->newVarValue(IntegerType::getTypeInt());
+
+    // 将i1类型的布尔结果转换为i32类型的整数结果（0或1）
+    MoveInstruction * moveInst = new MoveInstruction(module->getCurrentFunction(), result, eqInst);
+
     // 添加指令
     node->blockInsts.addInst(operand->blockInsts);
     node->blockInsts.addInst(eqInst);
+    node->blockInsts.addInst(moveInst);
 
-    node->val = eqInst;
+    node->val = result;
 
     return true;
 }

@@ -1,16 +1,11 @@
-// test break
 int main()
 {
-    int i;
-    i = 0;
-    int sum;
-    sum = 0;
-    while (i < 100) {
-        if (i == 50) {
-            break;
-        }
-        sum = sum + i;
-        i = i + 1;
+    int a;
+    a = 10;
+    if (-!!!a) {
+        a = - - -1;
+    } else {
+        a = 0;
     }
-    return sum;
+    return a;
 }
