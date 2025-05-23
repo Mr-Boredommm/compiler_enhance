@@ -28,8 +28,6 @@
 #include "GotoInstruction.h"
 #include "FuncCallInstruction.h"
 #include "MoveInstruction.h"
-#include "IcmpInstruction.h"
-#include "BcInstruction.h"
 
 /// @brief 构造函数
 /// @param _irCode 指令
@@ -55,10 +53,6 @@ InstSelectorArm32::InstSelectorArm32(vector<Instruction *> & _irCode,
     translator_handlers[IRInstOperator::IRINST_OP_DIV_I] = &InstSelectorArm32::translate_div_int32;
     translator_handlers[IRInstOperator::IRINST_OP_MOD_I] = &InstSelectorArm32::translate_mod_int32;
     translator_handlers[IRInstOperator::IRINST_OP_NEG_I] = &InstSelectorArm32::translate_neg_int32;
-
-    // 添加对条件比较和条件分支指令的支持
-    translator_handlers[IRInstOperator::IRINST_OP_ICMP] = &InstSelectorArm32::translate_icmp;
-    translator_handlers[IRInstOperator::IRINST_OP_BC] = &InstSelectorArm32::translate_bc;
 
     translator_handlers[IRInstOperator::IRINST_OP_FUNC_CALL] = &InstSelectorArm32::translate_call;
     translator_handlers[IRInstOperator::IRINST_OP_ARG] = &InstSelectorArm32::translate_arg;
@@ -342,7 +336,7 @@ void InstSelectorArm32::translate_div_int32(Instruction * inst)
     }
 
     // 执行除法运算
-    iloc.inst("sdiv",
+    iloc.inst("sdiv", 
               PlatformArm32::regName[result_reg],
               PlatformArm32::regName[arg1_reg],
               PlatformArm32::regName[arg2_reg]);
@@ -375,7 +369,7 @@ void InstSelectorArm32::translate_mod_int32(Instruction * inst)
     // 确保操作数已加载到寄存器
     int32_t arg1_reg = arg1->getRegId() != -1 ? arg1->getRegId() : simpleRegisterAllocator.Allocate(arg1);
     int32_t arg2_reg = arg2->getRegId() != -1 ? arg2->getRegId() : simpleRegisterAllocator.Allocate(arg2);
-
+    
     if (arg1->getRegId() == -1) {
         iloc.load_var(arg1_reg, arg1);
     }
@@ -392,17 +386,17 @@ void InstSelectorArm32::translate_mod_int32(Instruction * inst)
     }
 
     // 计算商 = arg1 / arg2
-    iloc.inst("sdiv",
-              PlatformArm32::regName[temp1],
+    iloc.inst("sdiv", PlatformArm32::regName[temp1],
               PlatformArm32::regName[arg1_reg],
               PlatformArm32::regName[arg2_reg]);
-
+    
     // 计算商*除数
-    iloc.inst("mul", PlatformArm32::regName[temp2], PlatformArm32::regName[temp1], PlatformArm32::regName[arg2_reg]);
-
+    iloc.inst("mul", PlatformArm32::regName[temp2],
+              PlatformArm32::regName[temp1],
+              PlatformArm32::regName[arg2_reg]);
+    
     // 计算余数 = 被除数 - (商*除数)
-    iloc.inst("sub",
-              PlatformArm32::regName[result_reg],
+    iloc.inst("sub", PlatformArm32::regName[result_reg],
               PlatformArm32::regName[arg1_reg],
               PlatformArm32::regName[temp2]);
 
@@ -432,12 +426,13 @@ void InstSelectorArm32::translate_neg_int32(Instruction * inst)
     // 使用RSB指令实现负号运算: rsb rd, rn, #0 等价于 rd = 0 - rn
     Value * result = inst;
     Value * arg = inst->getOperand(0);
-
+    
     int32_t arg_reg = arg->getRegId() != -1 ? arg->getRegId() : simpleRegisterAllocator.Allocate(arg);
     int32_t result_reg = result->getRegId() != -1 ? result->getRegId() : simpleRegisterAllocator.Allocate(result);
 
     // 执行负号运算
-    iloc.inst("rsb", PlatformArm32::regName[result_reg], PlatformArm32::regName[arg_reg], "#0");
+    iloc.inst("rsb", PlatformArm32::regName[result_reg], 
+              PlatformArm32::regName[arg_reg], "#0");
 
     // 保存结果
     if (result->getRegId() == -1) {
@@ -568,234 +563,4 @@ void InstSelectorArm32::translate_arg(Instruction * inst)
     }
 
     realArgCount++;
-}
-
-/// @brief 条件比较指令翻译成ARM32汇编
-/// @param inst IR指令
-void InstSelectorArm32::translate_icmp(Instruction * inst)
-{
-    // 将IcmpInstruction转换为正确的类型
-    IcmpInstruction * icmpInst = dynamic_cast<IcmpInstruction *>(inst);
-    if (!icmpInst) {
-        fprintf(stderr, "Error: Invalid ICMP instruction\n");
-        return;
-    }
-
-    // 获取操作数和结果
-    Value * result = inst;
-    Value * left = icmpInst->getLeft();
-    Value * right = icmpInst->getRight();
-    std::string cmpType = icmpInst->getCmpType();
-
-    if (!left || !right) {
-        fprintf(stderr, "Error: Null operand in ICMP instruction\n");
-        // 使用默认值设置结果为0
-        int32_t result_reg = result->getRegId() != -1 ? result->getRegId() : simpleRegisterAllocator.Allocate(result);
-        iloc.inst("mov", PlatformArm32::regName[result_reg], "#0");
-
-        // 如果结果不是寄存器变量，需要保存到内存
-        if (result->getRegId() == -1) {
-            iloc.store_var(result_reg, result, ARM32_TMP_REG_NO);
-            simpleRegisterAllocator.free(result_reg);
-        }
-        return;
-    }
-
-    // 确保操作数在寄存器中，处理可能的异常
-    int32_t left_reg = -1, right_reg = -1, result_reg = -1;
-
-    try {
-        left_reg = left->getRegId() != -1 ? left->getRegId() : simpleRegisterAllocator.Allocate(left);
-    } catch (const std::exception & e) {
-        fprintf(stderr, "Error: Failed to allocate register for left operand: %s\n", e.what());
-        left_reg = ARM32_TMP_REG_NO;
-        iloc.inst("mov", PlatformArm32::regName[left_reg], "#0");
-    }
-
-    try {
-        right_reg = right->getRegId() != -1 ? right->getRegId() : simpleRegisterAllocator.Allocate(right);
-    } catch (const std::exception & e) {
-        fprintf(stderr, "Error: Failed to allocate register for right operand: %s\n", e.what());
-        right_reg = ARM32_TMP_REG_NO;
-        iloc.inst("mov", PlatformArm32::regName[right_reg], "#0");
-    }
-
-    try {
-        result_reg = result->getRegId() != -1 ? result->getRegId() : simpleRegisterAllocator.Allocate(result);
-    } catch (const std::exception & e) {
-        fprintf(stderr, "Error: Failed to allocate register for result: %s\n", e.what());
-        result_reg = ARM32_TMP_REG_NO;
-    }
-
-    // 先加载左操作数到寄存器
-    if (left->getRegId() == -1) {
-        try {
-            iloc.load_var(left_reg, left);
-        } catch (const std::exception & e) {
-            fprintf(stderr, "Error: Failed to load left operand: %s\n", e.what());
-            iloc.inst("mov", PlatformArm32::regName[left_reg], "#0");
-        }
-    }
-
-    // 再加载右操作数到寄存器
-    if (right->getRegId() == -1) {
-        try {
-            iloc.load_var(right_reg, right);
-        } catch (const std::exception & e) {
-            fprintf(stderr, "Error: Failed to load right operand: %s\n", e.what());
-            iloc.inst("mov", PlatformArm32::regName[right_reg], "#0");
-        }
-    }
-
-    // 使用cmp指令进行比较
-    iloc.inst("cmp", PlatformArm32::regName[left_reg], PlatformArm32::regName[right_reg]);
-
-    // 根据比较类型设置条件码
-    std::string condCode;
-    if (cmpType == "eq") {
-        condCode = "eq"; // 等于
-    } else if (cmpType == "ne") {
-        condCode = "ne"; // 不等于
-    } else if (cmpType == "gt") {
-        condCode = "gt"; // 大于
-    } else if (cmpType == "ge") {
-        condCode = "ge"; // 大于等于
-    } else if (cmpType == "lt") {
-        condCode = "lt"; // 小于
-    } else if (cmpType == "le") {
-        condCode = "le"; // 小于等于
-    } else {
-        fprintf(stderr, "Error: Unknown comparison type: %s\n", cmpType.c_str());
-        iloc.inst("mov", PlatformArm32::regName[result_reg], "#0");
-
-        // 如果结果不是寄存器变量，需要保存到内存
-        if (result->getRegId() == -1) {
-            iloc.store_var(result_reg, result, ARM32_TMP_REG_NO);
-        }
-
-        // 释放临时寄存器
-        if (left->getRegId() == -1 && left_reg != ARM32_TMP_REG_NO) {
-            try {
-                simpleRegisterAllocator.free(left_reg);
-            } catch (...) {
-            }
-        }
-        if (right->getRegId() == -1 && right_reg != ARM32_TMP_REG_NO) {
-            try {
-                simpleRegisterAllocator.free(right_reg);
-            } catch (...) {
-            }
-        }
-        if (result->getRegId() == -1 && result_reg != ARM32_TMP_REG_NO) {
-            try {
-                simpleRegisterAllocator.free(result_reg);
-            } catch (...) {
-            }
-        }
-        return;
-    }
-
-    // 将比较结果存入result寄存器，使用条件移动指令
-    // 先设置为0
-    iloc.inst("mov", PlatformArm32::regName[result_reg], "#0");
-    // 如果条件成立，设置为1
-    iloc.inst("mov" + condCode, PlatformArm32::regName[result_reg], "#1");
-
-    // 如果结果不是寄存器变量，需要保存到内存
-    if (result->getRegId() == -1) {
-        try {
-            iloc.store_var(result_reg, result, ARM32_TMP_REG_NO);
-        } catch (const std::exception & e) {
-            fprintf(stderr, "Error: Failed to store result: %s\n", e.what());
-        }
-    }
-
-    // 释放临时寄存器
-    if (left->getRegId() == -1 && left_reg != ARM32_TMP_REG_NO) {
-        try {
-            simpleRegisterAllocator.free(left_reg);
-        } catch (const std::exception & e) {
-            fprintf(stderr, "Error: Failed to free left register: %s\n", e.what());
-        }
-    }
-    if (right->getRegId() == -1 && right_reg != ARM32_TMP_REG_NO) {
-        try {
-            simpleRegisterAllocator.free(right_reg);
-        } catch (const std::exception & e) {
-            fprintf(stderr, "Error: Failed to free right register: %s\n", e.what());
-        }
-    }
-    if (result->getRegId() == -1 && result_reg != ARM32_TMP_REG_NO) {
-        try {
-            simpleRegisterAllocator.free(result_reg);
-        } catch (const std::exception & e) {
-            fprintf(stderr, "Error: Failed to free result register: %s\n", e.what());
-        }
-    }
-}
-
-/// @brief 条件分支指令翻译成ARM32汇编
-/// @param inst IR指令
-void InstSelectorArm32::translate_bc(Instruction * inst)
-{
-    // 将BcInstruction转换为正确的类型
-    BcInstruction * bcInst = dynamic_cast<BcInstruction *>(inst);
-    if (!bcInst) {
-        fprintf(stderr, "Error: Invalid BC instruction\n");
-        return;
-    }
-
-    // 获取条件值
-    Value * condition = bcInst->getCondition();
-    if (!condition) {
-        fprintf(stderr, "Error: Null condition in BC instruction\n");
-        return;
-    }
-
-    // 获取真分支和假分支标签
-    LabelInstruction * trueLabel = dynamic_cast<LabelInstruction *>(bcInst->getTrueLabel());
-    LabelInstruction * falseLabel = dynamic_cast<LabelInstruction *>(bcInst->getFalseLabel());
-
-    if (!trueLabel || !falseLabel) {
-        fprintf(stderr, "Error: Invalid labels in BC instruction\n");
-        return;
-    }
-
-    // 确保条件值在寄存器中
-    int32_t cond_reg = -1;
-    try {
-        cond_reg = condition->getRegId() != -1 ? condition->getRegId() : simpleRegisterAllocator.Allocate(condition);
-    } catch (const std::exception & e) {
-        fprintf(stderr, "Error: Failed to allocate register for condition: %s\n", e.what());
-        // 使用一个默认寄存器，设置为0
-        cond_reg = ARM32_TMP_REG_NO;
-        iloc.inst("mov", PlatformArm32::regName[cond_reg], "#0");
-    }
-
-    // 加载条件值到寄存器，处理可能的异常
-    if (condition->getRegId() == -1) {
-        try {
-            iloc.load_var(cond_reg, condition);
-        } catch (const std::exception & e) {
-            fprintf(stderr, "Error: Failed to load condition value: %s\n", e.what());
-            // 设置为0
-            iloc.inst("mov", PlatformArm32::regName[cond_reg], "#0");
-        }
-    }
-
-    // 比较条件值与0
-    iloc.inst("cmp", PlatformArm32::regName[cond_reg], "#0");
-
-    // 如果条件为真（非0），跳转到真分支，否则跳转到假分支
-    iloc.inst("bne", trueLabel->getName());
-    iloc.inst("b", falseLabel->getName());
-
-    // 释放临时寄存器
-    if (condition->getRegId() == -1 && cond_reg != ARM32_TMP_REG_NO) {
-        try {
-            simpleRegisterAllocator.free(cond_reg);
-        } catch (const std::exception & e) {
-            fprintf(stderr, "Error: Failed to free register: %s\n", e.what());
-        }
-    }
 }
