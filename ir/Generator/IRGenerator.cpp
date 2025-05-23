@@ -234,7 +234,7 @@ bool IRGenerator::ir_function_define(ast_node * node)
     irCode.addInst(new EntryInstruction(newFunc));
 
     // 创建出口指令并不加入出口指令，等函数内的指令处理完毕后加入出口指令
-    LabelInstruction * exitLabelInst = new LabelInstruction(newFunc);
+    LabelInstruction * exitLabelInst = new LabelInstruction(newFunc, generate_label());
 
     // 函数出口指令保存到函数信息中，因为在语义分析函数体时return语句需要跳转到函数尾部，需要这个label指令
     newFunc->setExitLabel(exitLabelInst);

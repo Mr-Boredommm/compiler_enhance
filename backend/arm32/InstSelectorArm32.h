@@ -107,6 +107,14 @@ protected:
     ///
     void translate_arg(Instruction * inst);
 
+    /// @brief 条件分支指令翻译成ARM32汇编
+    /// @param inst IR指令
+    void translate_bc(Instruction * inst);
+
+    /// @brief 关系运算指令翻译成ARM32汇编
+    /// @param inst IR指令
+    void translate_icmp(Instruction * inst);
+
     ///
     /// @brief 输出IR指令
     ///
