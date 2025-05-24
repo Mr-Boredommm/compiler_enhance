@@ -1,20 +1,32 @@
-// test if-if-else
-int ififElse()
-{
-    int a;
-    a = 5;
-    int b;
-    b = 10;
-    if (a == 5)
-        if (b == 10)
-            a = 25;
-        else
-            a = a + 15;
-
-    return (a);
-}
-
-int main()
-{
-    return (ififElse());
-}
+int FourWhile() {
+	int a;
+	a = 5;
+	int b;
+	int c;
+	b = 6;
+	c = 7;
+	int d;
+	d = 10;
+	while (a < 20) {
+	  a = a + 3;
+	  while(b < 10){
+		b = b + 1;
+		while(c == 7){
+		  c = c - 1;
+		  while(d < 20){
+			d = d + 3;
+		  }
+		  d = d - 1;
+		}
+		c = c + 1;
+	  }
+	  b = b - 2;
+	}
+	
+	return (a + (b + d) + c);
+  }
+  
+  int main() {
+	return FourWhile();
+  }
+  
