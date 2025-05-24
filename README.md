@@ -42,6 +42,21 @@
 
 
 
+## 常用指令
+./tools/IRCompiler/Linux-x86_64/Ubuntu-22.04/IRCompiler -S -I -o ./tests/test26real.ir function/026_if.c
+
+上述指令用于生成测试样例的真正IR表示。
+
+cd build                                                                                         
+cpack --config CPackSourceConfig.cmake
+
+将项目打包为zip文件。
+
+./tools/IRCompiler/Linux-x86_64/Ubuntu-22.04/IRCompiler -R 000_main.ir
+
+echo $?
+ir直接执行
+
 
 ## 1.1. 编译器的功能（原版）
 

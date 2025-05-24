@@ -14,6 +14,7 @@
 /// </table>
 ///
 #include <cstdio>
+#include <algorithm>
 
 #include "Common.h"
 #include "ILocArm32.h"
@@ -28,6 +29,8 @@
 #include "GotoInstruction.h"
 #include "FuncCallInstruction.h"
 #include "MoveInstruction.h"
+#include "IcmpInstruction.h"
+#include "BcInstruction.h"
 
 /// @brief 构造函数
 /// @param _irCode 指令
@@ -56,6 +59,10 @@ InstSelectorArm32::InstSelectorArm32(vector<Instruction *> & _irCode,
 
     translator_handlers[IRInstOperator::IRINST_OP_FUNC_CALL] = &InstSelectorArm32::translate_call;
     translator_handlers[IRInstOperator::IRINST_OP_ARG] = &InstSelectorArm32::translate_arg;
+
+    // 新增关系运算和条件分支指令处理
+    translator_handlers[IRInstOperator::IRINST_OP_ICMP] = &InstSelectorArm32::translate_icmp;
+    translator_handlers[IRInstOperator::IRINST_OP_BC] = &InstSelectorArm32::translate_bc;
 }
 
 ///
@@ -134,8 +141,22 @@ void InstSelectorArm32::translate_goto(Instruction * inst)
 {
     Instanceof(gotoInst, GotoInstruction *, inst);
 
+    // 获取目标标签
+    LabelInstruction * target = gotoInst->getTarget();
+    if (target == nullptr) {
+        minic_log(LOG_ERROR, "无效的goto目标标签");
+        return;
+    }
+
+    // 获取目标标签名
+    std::string targetName = target->getName();
+    if (targetName.empty()) {
+        minic_log(LOG_ERROR, "goto目标标签名为空");
+        return;
+    }
+
     // 无条件跳转
-    iloc.jump(gotoInst->getTarget()->getName());
+    iloc.jump(targetName);
 }
 
 /// @brief 函数入口指令翻译成ARM32汇编
@@ -336,7 +357,7 @@ void InstSelectorArm32::translate_div_int32(Instruction * inst)
     }
 
     // 执行除法运算
-    iloc.inst("sdiv", 
+    iloc.inst("sdiv",
               PlatformArm32::regName[result_reg],
               PlatformArm32::regName[arg1_reg],
               PlatformArm32::regName[arg2_reg]);
@@ -369,7 +390,7 @@ void InstSelectorArm32::translate_mod_int32(Instruction * inst)
     // 确保操作数已加载到寄存器
     int32_t arg1_reg = arg1->getRegId() != -1 ? arg1->getRegId() : simpleRegisterAllocator.Allocate(arg1);
     int32_t arg2_reg = arg2->getRegId() != -1 ? arg2->getRegId() : simpleRegisterAllocator.Allocate(arg2);
-    
+
     if (arg1->getRegId() == -1) {
         iloc.load_var(arg1_reg, arg1);
     }
@@ -386,17 +407,17 @@ void InstSelectorArm32::translate_mod_int32(Instruction * inst)
     }
 
     // 计算商 = arg1 / arg2
-    iloc.inst("sdiv", PlatformArm32::regName[temp1],
+    iloc.inst("sdiv",
+              PlatformArm32::regName[temp1],
               PlatformArm32::regName[arg1_reg],
               PlatformArm32::regName[arg2_reg]);
-    
+
     // 计算商*除数
-    iloc.inst("mul", PlatformArm32::regName[temp2],
-              PlatformArm32::regName[temp1],
-              PlatformArm32::regName[arg2_reg]);
-    
+    iloc.inst("mul", PlatformArm32::regName[temp2], PlatformArm32::regName[temp1], PlatformArm32::regName[arg2_reg]);
+
     // 计算余数 = 被除数 - (商*除数)
-    iloc.inst("sub", PlatformArm32::regName[result_reg],
+    iloc.inst("sub",
+              PlatformArm32::regName[result_reg],
               PlatformArm32::regName[arg1_reg],
               PlatformArm32::regName[temp2]);
 
@@ -426,13 +447,12 @@ void InstSelectorArm32::translate_neg_int32(Instruction * inst)
     // 使用RSB指令实现负号运算: rsb rd, rn, #0 等价于 rd = 0 - rn
     Value * result = inst;
     Value * arg = inst->getOperand(0);
-    
+
     int32_t arg_reg = arg->getRegId() != -1 ? arg->getRegId() : simpleRegisterAllocator.Allocate(arg);
     int32_t result_reg = result->getRegId() != -1 ? result->getRegId() : simpleRegisterAllocator.Allocate(result);
 
     // 执行负号运算
-    iloc.inst("rsb", PlatformArm32::regName[result_reg], 
-              PlatformArm32::regName[arg_reg], "#0");
+    iloc.inst("rsb", PlatformArm32::regName[result_reg], PlatformArm32::regName[arg_reg], "#0");
 
     // 保存结果
     if (result->getRegId() == -1) {
@@ -563,4 +583,214 @@ void InstSelectorArm32::translate_arg(Instruction * inst)
     }
 
     realArgCount++;
+}
+
+/// @brief 关系运算指令翻译成ARM32汇编
+/// @param inst IR指令
+void InstSelectorArm32::translate_icmp(Instruction * inst)
+{
+    // 智能处理 icmp 指令：
+    // 1. 如果 icmp 结果直接被 bc 指令使用，bc 会处理比较，icmp 不需要存储
+    // 2. 如果 icmp 结果被其他指令使用（如其他 icmp），则需要存储比较结果
+
+    // 检查这个 icmp 指令是否需要存储结果
+    // 我们通过检查下一条指令来判断使用模式
+    bool needsStorage = true;
+
+    // 查找当前指令在 IR 序列中的位置
+    auto currentIt = std::find(ir.begin(), ir.end(), inst);
+    if (currentIt != ir.end()) {
+        auto nextIt = currentIt + 1;
+
+        // 检查接下来的几条指令，看是否有 bc 指令直接使用这个 icmp 的结果
+        for (int i = 0; i < 3 && nextIt != ir.end(); i++, nextIt++) {
+            Instruction * nextInst = *nextIt;
+
+            // 如果下一条指令是 bc 且直接使用这个 icmp 的结果
+            if (nextInst->getOp() == IRInstOperator::IRINST_OP_BC) {
+                BcInstruction * bcInst = dynamic_cast<BcInstruction *>(nextInst);
+                if (bcInst && bcInst->getCondition() == inst) {
+                    needsStorage = false;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (needsStorage) {
+        // 需要存储比较结果，生成实际的比较和存储代码
+        IcmpInstruction * icmpInst = dynamic_cast<IcmpInstruction *>(inst);
+        if (!icmpInst)
+            return;
+
+        Value * result = inst;
+        Value * left = icmpInst->getOperand(0);
+        Value * right = icmpInst->getOperand(1);
+        std::string relop = icmpInst->getCmpType();
+
+        // 分配寄存器
+        int32_t left_reg = left->getRegId() != -1 ? left->getRegId() : simpleRegisterAllocator.Allocate(left);
+        int32_t right_reg = right->getRegId() != -1 ? right->getRegId() : simpleRegisterAllocator.Allocate(right);
+        int32_t result_reg = result->getRegId() != -1 ? result->getRegId() : simpleRegisterAllocator.Allocate(result);
+
+        // 加载操作数
+        if (left->getRegId() == -1) {
+            iloc.load_var(left_reg, left);
+        }
+        if (right->getRegId() == -1) {
+            iloc.load_var(right_reg, right);
+        }
+
+        // 执行比较
+        iloc.inst("cmp", PlatformArm32::regName[left_reg], PlatformArm32::regName[right_reg]);
+
+        // 根据比较类型设置结果寄存器
+        if (relop == "eq") {
+            iloc.inst("moveq", PlatformArm32::regName[result_reg], "#1");
+            iloc.inst("movne", PlatformArm32::regName[result_reg], "#0");
+        } else if (relop == "ne") {
+            iloc.inst("movne", PlatformArm32::regName[result_reg], "#1");
+            iloc.inst("moveq", PlatformArm32::regName[result_reg], "#0");
+        } else if (relop == "lt") {
+            iloc.inst("movlt", PlatformArm32::regName[result_reg], "#1");
+            iloc.inst("movge", PlatformArm32::regName[result_reg], "#0");
+        } else if (relop == "le") {
+            iloc.inst("movle", PlatformArm32::regName[result_reg], "#1");
+            iloc.inst("movgt", PlatformArm32::regName[result_reg], "#0");
+        } else if (relop == "gt") {
+            iloc.inst("movgt", PlatformArm32::regName[result_reg], "#1");
+            iloc.inst("movle", PlatformArm32::regName[result_reg], "#0");
+        } else if (relop == "ge") {
+            iloc.inst("movge", PlatformArm32::regName[result_reg], "#1");
+            iloc.inst("movlt", PlatformArm32::regName[result_reg], "#0");
+        }
+
+        // 保存结果
+        if (result->getRegId() == -1) {
+            iloc.store_var(result_reg, result, ARM32_TMP_REG_NO);
+        }
+
+        // 释放寄存器
+        simpleRegisterAllocator.free(left);
+        simpleRegisterAllocator.free(right);
+        simpleRegisterAllocator.free(result);
+    }
+    // 如果不需要存储，什么都不做（bc 指令会处理比较）
+}
+
+/// @brief 条件分支指令翻译成ARM32汇编
+/// @param inst IR指令
+void InstSelectorArm32::translate_bc(Instruction * inst)
+{
+    // 条件分支指令，根据条件跳转到不同的标签
+    BcInstruction * bcInst = dynamic_cast<BcInstruction *>(inst);
+
+    if (!bcInst) {
+        minic_log(LOG_ERROR, "非法的条件分支指令");
+        return;
+    }
+
+    Value * condition = bcInst->getCondition();
+    Instruction * trueLabel = bcInst->getTrueLabel();
+    Instruction * falseLabel = bcInst->getFalseLabel();
+
+    // 将真分支标签和假分支标签转为LabelInstruction类型
+    LabelInstruction * trueLabelInst = dynamic_cast<LabelInstruction *>(trueLabel);
+    LabelInstruction * falseLabelInst = dynamic_cast<LabelInstruction *>(falseLabel);
+
+    if (!trueLabelInst || !falseLabelInst) {
+        minic_log(LOG_ERROR, "条件分支指令的目标必须是标签");
+        return;
+    }
+
+    // 获取标签名
+    std::string trueLabelName = trueLabelInst->getName();
+    std::string falseLabelName = falseLabelInst->getName();
+
+    // 声明用于加载条件值的寄存器
+    int32_t load_cond_reg_no;
+
+    // 检查条件的来源是否是icmp指令
+    IcmpInstruction * icmpInst = dynamic_cast<IcmpInstruction *>(condition);
+
+    if (icmpInst) {
+        // 如果条件是来自icmp指令的结果，我们可以在这里直接使用条件码进行跳转
+        // 首先，获取icmp的操作数
+        Value * left = icmpInst->getOperand(0);
+        Value * right = icmpInst->getOperand(1);
+        std::string relop = icmpInst->getCmpType();
+
+        // 分配寄存器并加载操作数
+        int32_t left_reg_no = left->getRegId();
+        int32_t right_reg_no = right->getRegId();
+
+        int32_t load_left_reg_no;
+        int32_t load_right_reg_no;
+
+        // 加载左操作数
+        if (left_reg_no == -1) {
+            load_left_reg_no = simpleRegisterAllocator.Allocate(left);
+            iloc.load_var(load_left_reg_no, left);
+        } else {
+            load_left_reg_no = left_reg_no;
+        }
+
+        // 加载右操作数
+        if (right_reg_no == -1) {
+            load_right_reg_no = simpleRegisterAllocator.Allocate(right);
+            iloc.load_var(load_right_reg_no, right);
+        } else {
+            load_right_reg_no = right_reg_no;
+        }
+
+        // 直接比较操作数
+        iloc.inst("cmp", PlatformArm32::regName[load_left_reg_no], PlatformArm32::regName[load_right_reg_no]);
+
+        // 根据比较类型和分支目标使用条件跳转
+        if (relop == "eq") {
+            iloc.inst("beq", trueLabelName);
+            iloc.inst("b", falseLabelName);
+        } else if (relop == "ne") {
+            iloc.inst("bne", trueLabelName);
+            iloc.inst("b", falseLabelName);
+        } else if (relop == "lt") {
+            iloc.inst("blt", trueLabelName);
+            iloc.inst("b", falseLabelName);
+        } else if (relop == "le") {
+            iloc.inst("ble", trueLabelName);
+            iloc.inst("b", falseLabelName);
+        } else if (relop == "gt") {
+            iloc.inst("bgt", trueLabelName);
+            iloc.inst("b", falseLabelName);
+        } else if (relop == "ge") {
+            iloc.inst("bge", trueLabelName);
+            iloc.inst("b", falseLabelName);
+        }
+
+        // 释放寄存器
+        simpleRegisterAllocator.free(left);
+        simpleRegisterAllocator.free(right);
+    } else {
+        // 对于非 icmp 条件，直接加载条件值并与0比较
+        int32_t cond_reg_no = condition->getRegId();
+
+        if (cond_reg_no == -1) {
+            load_cond_reg_no = simpleRegisterAllocator.Allocate(condition);
+            iloc.load_var(load_cond_reg_no, condition);
+        } else {
+            load_cond_reg_no = cond_reg_no;
+        }
+
+        // 比较条件寄存器与0
+        iloc.inst("cmp", PlatformArm32::regName[load_cond_reg_no], "#0");
+
+        // 如果条件为0（假），则跳转到假分支标签
+        iloc.inst("beq", falseLabelName);
+
+        // 否则跳转到真分支标签
+        iloc.inst("b", trueLabelName);
+
+        // 释放寄存器
+        simpleRegisterAllocator.free(condition);
+    }
 }

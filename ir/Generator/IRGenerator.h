@@ -20,6 +20,7 @@
 
 #include "AST.h"
 #include "Module.h"
+#include "LabelInstruction.h"
 
 /// @brief AST遍历产生线性IR类
 class IRGenerator {
@@ -132,6 +133,76 @@ protected:
     /// @return 翻译是否成功，true：成功，false：失败
     bool ir_variable_declare(ast_node * node);
 
+    /// @brief 关系运算符 < 翻译成线性中间IR
+    /// @param node AST节点
+    /// @return 翻译是否成功，true：成功，false：失败
+    bool ir_lt(ast_node * node);
+
+    /// @brief 关系运算符 <= 翻译成线性中间IR
+    /// @param node AST节点
+    /// @return 翻译是否成功，true：成功，false：失败
+    bool ir_le(ast_node * node);
+
+    /// @brief 关系运算符 > 翻译成线性中间IR
+    /// @param node AST节点
+    /// @return 翻译是否成功，true：成功，false：失败
+    bool ir_gt(ast_node * node);
+
+    /// @brief 关系运算符 >= 翻译成线性中间IR
+    /// @param node AST节点
+    /// @return 翻译是否成功，true：成功，false：失败
+    bool ir_ge(ast_node * node);
+
+    /// @brief 关系运算符 == 翻译成线性中间IR
+    /// @param node AST节点
+    /// @return 翻译是否成功，true：成功，false：失败
+    bool ir_eq(ast_node * node);
+
+    /// @brief 关系运算符 != 翻译成线性中间IR
+    /// @param node AST节点
+    /// @return 翻译是否成功，true：成功，false：失败
+    bool ir_ne(ast_node * node);
+
+    /// @brief 逻辑与 && 翻译成线性中间IR，实现短路求值
+    /// @param node AST节点
+    /// @return 翻译是否成功，true：成功，false：失败
+    bool ir_logical_and(ast_node * node);
+
+    /// @brief 逻辑或 || 翻译成线性中间IR，实现短路求值
+    /// @param node AST节点
+    /// @return 翻译是否成功，true：成功，false：失败
+    bool ir_logical_or(ast_node * node);
+
+    /// @brief 逻辑非 ! 翻译成线性中间IR
+    /// @param node AST节点
+    /// @return 翻译是否成功，true：成功，false：失败
+    bool ir_logical_not(ast_node * node);
+
+    /// @brief if语句翻译成线性中间IR
+    /// @param node AST节点
+    /// @return 翻译是否成功，true：成功，false：失败
+    bool ir_if(ast_node * node);
+
+    /// @brief if-else语句翻译成线性中间IR
+    /// @param node AST节点
+    /// @return 翻译是否成功，true：成功，false：失败
+    bool ir_if_else(ast_node * node);
+
+    /// @brief while循环语句翻译成线性中间IR
+    /// @param node AST节点
+    /// @return 翻译是否成功，true：成功，false：失败
+    bool ir_while(ast_node * node);
+
+    /// @brief break语句翻译成线性中间IR
+    /// @param node AST节点
+    /// @return 翻译是否成功，true：成功，false：失败
+    bool ir_break(ast_node * node);
+
+    /// @brief continue语句翻译成线性中间IR
+    /// @param node AST节点
+    /// @return 翻译是否成功，true：成功，false：失败
+    bool ir_continue(ast_node * node);
+
     /// @brief 未知节点类型的节点处理
     /// @param node AST节点
     /// @return 翻译是否成功，true：成功，false：失败
@@ -154,4 +225,22 @@ private:
 
     /// @brief 符号表:模块
     Module * module;
+
+    /// @brief 当前处理的while循环的开始标签
+    std::string currentWhileStartLabel;
+
+    /// @brief 当前处理的while循环的结束标签
+    std::string currentWhileEndLabel;
+
+    /// @brief 当前循环的开始标签指令
+    LabelInstruction * currentWhileStartLabelInst;
+
+    /// @brief 当前循环的结束标签指令
+    LabelInstruction * currentWhileEndLabelInst;
+
+    /// @brief while循环嵌套层级
+    std::vector<std::pair<std::string, std::string>> whileLabels;
+
+    /// @brief while循环嵌套层级的标签指令
+    std::vector<std::pair<LabelInstruction *, LabelInstruction *>> whileLabelInsts;
 };

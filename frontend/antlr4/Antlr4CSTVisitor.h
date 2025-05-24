@@ -174,4 +174,74 @@ protected:
     /// @return std::any 运算符类型
     ///
     std::any visitMulOp(MiniCParser::MulOpContext * ctx) override;
+
+    ///
+    /// @brief 非终结符LogicalOrExp的分析
+    /// @param ctx CST上下文
+    /// @return std::any AST的节点
+    ///
+    std::any visitLogicalOrExp(MiniCParser::LogicalOrExpContext * ctx) override;
+
+    ///
+    /// @brief 非终结符LogicalAndExp的分析
+    /// @param ctx CST上下文
+    /// @return std::any AST的节点
+    ///
+    std::any visitLogicalAndExp(MiniCParser::LogicalAndExpContext * ctx) override;
+
+    ///
+    /// @brief 非终结符EqualityExp的分析
+    /// @param ctx CST上下文
+    /// @return std::any AST的节点
+    ///
+    std::any visitEqualityExp(MiniCParser::EqualityExpContext * ctx) override;
+
+    ///
+    /// @brief 非终结符EqualityOp的分析
+    /// @param ctx CST上下文
+    /// @return std::any 运算符类型
+    ///
+    std::any visitEqualityOp(MiniCParser::EqualityOpContext * ctx) override;
+
+    ///
+    /// @brief 非终结符RelationalExp的分析
+    /// @param ctx CST上下文
+    /// @return std::any AST的节点
+    ///
+    std::any visitRelationalExp(MiniCParser::RelationalExpContext * ctx) override;
+
+    ///
+    /// @brief 非终结符RelationalOp的分析
+    /// @param ctx CST上下文
+    /// @return std::any 运算符类型
+    ///
+    std::any visitRelationalOp(MiniCParser::RelationalOpContext * ctx) override;
+
+    ///
+    /// @brief 非终结符IfStatement的分析
+    /// @param ctx CST上下文
+    /// @return std::any AST的节点
+    ///
+    std::any visitIfStatement(MiniCParser::IfStatementContext * ctx) override;
+
+    ///
+    /// @brief 非终结符WhileStatement的分析
+    /// @param ctx CST上下文
+    /// @return std::any AST的节点
+    ///
+    std::any visitWhileStatement(MiniCParser::WhileStatementContext * ctx) override;
+
+    ///
+    /// @brief 非终结符BreakStatement的分析
+    /// @param ctx CST上下文
+    /// @return std::any AST的节点
+    ///
+    std::any visitBreakStatement(MiniCParser::BreakStatementContext * ctx) override;
+
+    ///
+    /// @brief 非终结符ContinueStatement的分析
+    /// @param ctx CST上下文
+    /// @return std::any AST的节点
+    ///
+    std::any visitContinueStatement(MiniCParser::ContinueStatementContext * ctx) override;
 };

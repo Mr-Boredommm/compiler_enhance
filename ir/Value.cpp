@@ -142,3 +142,12 @@ void Value::setLoadRegId(int32_t regId)
 {
     (void) regId;
 }
+
+///
+/// @brief 获取Value的ID
+/// @return std::string Value的ID
+///
+// std::string Value::getValueID() const
+// {
+//     return "." + getIRName();
+// }

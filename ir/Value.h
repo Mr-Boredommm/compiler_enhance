@@ -76,6 +76,12 @@ public:
     ///
     void setIRName(std::string _name);
 
+    ///
+    /// @brief 获取值的唯一标识符
+    /// @return 值的唯一标识符
+    ///
+    //[[nodiscard]] virtual std::string getValueID() const;
+
     /// @brief 获取类型
     /// @return 变量名
     virtual Type * getType();

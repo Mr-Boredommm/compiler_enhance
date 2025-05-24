@@ -104,6 +104,48 @@ enum class ast_operator_type : int {
     /// @brief 一元运算符- (负号)
     AST_OP_NEG,
 
+    /// @brief 逻辑运算符 && (与)
+    AST_OP_LOGICAL_AND,
+
+    /// @brief 逻辑运算符 || (或)
+    AST_OP_LOGICAL_OR,
+
+    /// @brief 逻辑运算符 ! (非)
+    AST_OP_LOGICAL_NOT,
+
+    /// @brief 关系运算符 < (小于)
+    AST_OP_LT,
+
+    /// @brief 关系运算符 <= (小于等于)
+    AST_OP_LE,
+
+    /// @brief 关系运算符 > (大于)
+    AST_OP_GT,
+
+    /// @brief 关系运算符 >= (大于等于)
+    AST_OP_GE,
+
+    /// @brief 关系运算符 == (等于)
+    AST_OP_EQ,
+
+    /// @brief 关系运算符 != (不等于)
+    AST_OP_NE,
+
+    /// @brief IF语句
+    AST_OP_IF,
+
+    /// @brief IF-ELSE语句
+    AST_OP_IF_ELSE,
+
+    /// @brief WHILE语句
+    AST_OP_WHILE,
+
+    /// @brief BREAK语句
+    AST_OP_BREAK,
+
+    /// @brief CONTINUE语句
+    AST_OP_CONTINUE,
+
     /// @brief 最大标识符，表示非法运算符
     AST_OP_MAX,
 };
@@ -312,3 +354,74 @@ ast_node * create_var_decl_stmt_node(type_attr & type, var_id_attr & id);
 /// @return ast_node* 变量声明语句节点
 ///
 ast_node * add_var_decl_node(ast_node * stmt_node, var_id_attr & id);
+
+///
+/// @brief 创建if语句节点
+/// @param condition_node 条件表达式节点
+/// @param then_body_node 条件为真时执行的语句块节点
+/// @return 创建的节点
+///
+ast_node * create_if_stmt(ast_node * condition_node, ast_node * then_body_node);
+
+///
+/// @brief 创建if-else语句节点
+/// @param condition_node 条件表达式节点
+/// @param then_body_node 条件为真时执行的语句块节点
+/// @param else_body_node 条件为假时执行的语句块节点
+/// @return 创建的节点
+///
+ast_node * create_if_else_stmt(ast_node * condition_node, ast_node * then_body_node, ast_node * else_body_node);
+
+///
+/// @brief 创建while循环语句节点
+/// @param condition_node 循环条件表达式节点
+/// @param body_node 循环体语句块节点
+/// @return 创建的节点
+///
+ast_node * create_while_stmt(ast_node * condition_node, ast_node * body_node);
+
+///
+/// @brief 创建break语句节点
+/// @param line_no 行号
+/// @return 创建的节点
+///
+ast_node * create_break_stmt(int64_t line_no);
+
+///
+/// @brief 创建continue语句节点
+/// @param line_no 行号
+/// @return 创建的节点
+///
+ast_node * create_continue_stmt(int64_t line_no);
+
+///
+/// @brief 创建关系运算表达式节点
+/// @param op_type 关系运算符类型（如AST_OP_LT, AST_OP_LE, AST_OP_GT等）
+/// @param left_node 左操作数节点
+/// @param right_node 右操作数节点
+/// @return 创建的节点
+///
+ast_node * create_relational_expr(ast_operator_type op_type, ast_node * left_node, ast_node * right_node);
+
+///
+/// @brief 创建逻辑与表达式节点
+/// @param left_node 左操作数节点
+/// @param right_node 右操作数节点
+/// @return 创建的节点
+///
+ast_node * create_logical_and_expr(ast_node * left_node, ast_node * right_node);
+
+///
+/// @brief 创建逻辑或表达式节点
+/// @param left_node 左操作数节点
+/// @param right_node 右操作数节点
+/// @return 创建的节点
+///
+ast_node * create_logical_or_expr(ast_node * left_node, ast_node * right_node);
+
+///
+/// @brief 创建逻辑非表达式节点
+/// @param operand_node 操作数节点
+/// @return 创建的节点
+///
+ast_node * create_logical_not_expr(ast_node * operand_node);

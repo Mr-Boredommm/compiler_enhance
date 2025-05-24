@@ -1,6 +1,6 @@
 {
 	"tabnine.experimentalAutoImports": true,
-	"editor.fontFamily": "'FiraCode NFM',monospace,'Courier New',Menlo,Monaco",
+	"editor.fontFamily": "'JetBrains Mono', 'FiraCode NFM',monospace,'Courier New',Menlo,Monaco",
 	"editor.fontSize": 16,
 	"editor.fontLigatures": true,
 	"editor.linkedEditing": true,
@@ -22,7 +22,7 @@
 	"gitlens.graph.layout": "editor",
 	"gitlens.gitCommands.skipConfirmations": ["fetch:command", "switch:command", "push:command"],
 	"workbench.iconTheme": "material-icon-theme",
-	"workbench.colorTheme": "Monokai",
+	"workbench.colorTheme": "Default Dark Modern",
 	"workbench.editor.enablePreview": false,
 	"workbench.editorAssociations": {
 		"*.ipynb": "jupyter-notebook",

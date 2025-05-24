@@ -156,6 +156,8 @@ set(BACKEND_SRCS
 set(IR_SRCS
 	ir/Generator/IRGenerator.cpp
 	ir/Generator/IRGenerator.h
+	ir/Generator/RelationalOpGenerator.h
+	ir/Generator/RelationalOpGeneratorImpl.cpp
 	ir/Instructions/ArgInstruction.cpp
 	ir/Instructions/ArgInstruction.h
 	ir/Instructions/BinaryInstruction.cpp
@@ -172,12 +174,20 @@ set(IR_SRCS
 	ir/Instructions/LabelInstruction.h
 	ir/Instructions/MoveInstruction.cpp
 	ir/Instructions/MoveInstruction.h
+	ir/Instructions/IfInstruction.h
+	ir/Instructions/IfInstruction.cpp
+	ir/Instructions/IcmpInstruction.h
+	ir/Instructions/IcmpInstruction.cpp
+	ir/Instructions/BcInstruction.h
+	ir/Instructions/BcInstruction.cpp
 	ir/Types/VoidType.h
 	ir/Types/VoidType.cpp
 	ir/Types/LabelType.h
 	ir/Types/LabelType.cpp
 	ir/Types/IntegerType.h
 	ir/Types/IntegerType.cpp
+	ir/Types/BoolType.h
+	ir/Types/BoolType.cpp
 	ir/Values/ConstInt.h
 	ir/Values/FormalParam.h
 	ir/Values/GlobalVariable.h
@@ -397,6 +407,8 @@ set(CPACK_SOURCE_IGNORE_FILES
 	"/.vs/;" # visual studio
 	"/.vscode/;" # vscode
 	"/.cache/;" # cache
+	"/function/;" # function
+	"/thirdparty/;" # 第三方库
 )
 
 # 二进制打包
