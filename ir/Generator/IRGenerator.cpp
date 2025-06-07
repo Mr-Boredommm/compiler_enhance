@@ -257,7 +257,21 @@ bool IRGenerator::ir_function_define(ast_node * node)
     }
     newFunc->setReturnValue(retValue);
 
-    // 这里最好设置返回值变量的初值为0，以便在没有返回值时能够返回0
+    // 功能要求6和7：为int类型函数初始化返回值变量，特别是main函数初始化为0
+    if (retValue) {
+        ConstInt * initValue;
+        if (name_node->name == "main") {
+            // 功能要求7：main函数初始化返回值为0，避免进程退出状态的随机值问题
+            initValue = module->newConstInt(0);
+        } else {
+            // 其他int类型函数也初始化为0
+            initValue = module->newConstInt(0);
+        }
+
+        // 创建初始化指令，将返回值变量初始化
+        MoveInstruction * initRetInst = new MoveInstruction(newFunc, retValue, initValue);
+        node->blockInsts.addInst(initRetInst);
+    }
 
     // 函数内已经进入作用域，内部不再需要做变量的作用域管理
     block_node->needScope = false;
@@ -298,12 +312,48 @@ bool IRGenerator::ir_function_define(ast_node * node)
 /// @return 翻译是否成功，true：成功，false：失败
 bool IRGenerator::ir_function_formal_params(ast_node * node)
 {
-    // TODO 目前形参还不支持，直接返回true
+    // 检查是否有形参
+    if (!node || node->sons.empty()) {
+        // 没有形参，直接返回成功
+        return true;
+    }
 
-    // 每个形参变量都创建对应的临时变量，用于表达实参转递的值
-    // 而真实的形参则创建函数内的局部变量。
-    // 然后产生赋值指令，用于把表达实参值的临时变量拷贝到形参局部变量上。
-    // 请注意这些指令要放在Entry指令后面，因此处理的先后上要注意。
+    // 获取当前正在处理的函数
+    Function * currentFunc = module->getCurrentFunction();
+    if (!currentFunc) {
+        // 当前没有函数上下文，错误
+        return false;
+    }
+
+    // 遍历每个形参节点
+    for (auto formalParamNode: node->sons) {
+        // 形参节点应该包含类型和名称信息
+        if (formalParamNode->node_type != ast_operator_type::AST_OP_FUNC_FORMAL_PARAM) {
+            continue;
+        }
+
+        // 获取形参的类型和名称
+        std::string paramName = formalParamNode->name;
+        Type * paramType = formalParamNode->type;
+
+        // 创建形参对象
+        FormalParam * formalParam = new FormalParam(paramType, paramName);
+
+        // 将形参添加到函数的形参列表中
+        currentFunc->getParams().push_back(formalParam);
+
+        // 为形参创建对应的局部变量，用于在函数内部访问
+        // 这样实现了功能要求5：形参对应两个值，一个代表实参的值（formalParam），一个用于局部变量（localVar）
+        LocalVariable * localVar = static_cast<LocalVariable *>(module->newVarValue(paramType, paramName));
+        if (!localVar) {
+            return false;
+        }
+
+        // 创建赋值指令，将形参的值复制到局部变量中
+        // 这个指令需要放在Entry指令之后
+        MoveInstruction * moveInst = new MoveInstruction(currentFunc, localVar, formalParam);
+        node->blockInsts.addInst(moveInst);
+    }
 
     return true;
 }

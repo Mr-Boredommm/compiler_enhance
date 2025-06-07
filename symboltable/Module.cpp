@@ -18,6 +18,7 @@
 #include "ScopeStack.h"
 #include "Common.h"
 #include "VoidType.h"
+#include "PointerType.h"
 
 Module::Module(std::string _name) : name(_name)
 {
@@ -32,6 +33,35 @@ Module::Module(std::string _name) : name(_name)
     (void) newFunction("getint", IntegerType::getTypeInt(), {}, true);
     // 加入内置函数putch
     (void) newFunction("putch", VoidType::getType(), {new FormalParam{IntegerType::getTypeInt(), ""}}, true);
+
+    // 加入剩余的内置函数
+    // getch() - int函数，字符输入
+    (void) newFunction("getch", IntegerType::getTypeInt(), {}, true);
+
+    // getarray(int[]) - int函数，数组输入，使用int*表示int[]
+    (void) newFunction(
+        "getarray",
+        IntegerType::getTypeInt(),
+        {new FormalParam{const_cast<Type *>(static_cast<const Type *>(PointerType::get(IntegerType::getTypeInt()))),
+                         ""}},
+        true);
+
+    // putarray(int, int[]) - void函数，数组输出
+    (void) newFunction(
+        "putarray",
+        VoidType::getType(),
+        {new FormalParam{IntegerType::getTypeInt(), ""},
+         new FormalParam{const_cast<Type *>(static_cast<const Type *>(PointerType::get(IntegerType::getTypeInt()))),
+                         ""}},
+        true);
+
+    // putstr(char*) - void函数，字符串输出，使用int*表示char*
+    (void) newFunction(
+        "putstr",
+        VoidType::getType(),
+        {new FormalParam{const_cast<Type *>(static_cast<const Type *>(PointerType::get(IntegerType::getTypeInt()))),
+                         ""}},
+        true);
 }
 
 /// @brief 进入作用域，如进入函数体块、语句块等

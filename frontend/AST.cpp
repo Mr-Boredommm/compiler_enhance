@@ -30,7 +30,8 @@ ast_node * ast_root = nullptr;
 /// @param _node_type 节点类型
 /// @param _line_no 行号
 ast_node::ast_node(ast_operator_type _node_type, Type * _type, int64_t _line_no)
-    : node_type(_node_type), line_no(-1), type(_type)
+    : node_type(_node_type), line_no(_line_no), type(_type), integer_val(0), longlong_val(0), float_val(0.0f),
+      numBase(10), isSigned(true), parent(nullptr), val(nullptr), needScope(true)
 {}
 
 /// @brief 构造函数
@@ -129,6 +130,16 @@ ast_node * ast_node::New(ast_operator_type type, ...)
     va_end(valist);
 
     return parent_node;
+}
+
+/// @brief 创建指定节点类型的节点
+/// @param type 节点类型
+/// @param line_no 行号
+/// @return 创建的节点
+ast_node * ast_node::New(ast_operator_type type, int64_t line_no)
+{
+    ast_node * node = new ast_node(type, VoidType::getType(), line_no);
+    return node;
 }
 
 /// @brief 向父节点插入一个节点
@@ -634,7 +645,7 @@ ast_node * create_logical_not_expr(ast_node * operand_node)
 ast_node * create_func_formal_param(uint32_t line_no, const char * param_name)
 {
     // 创建形参节点
-    ast_node * param_node = ast_node::New(ast_operator_type::AST_OP_FUNC_FORMAL_PARAM, line_no);
+    ast_node * param_node = new ast_node(ast_operator_type::AST_OP_FUNC_FORMAL_PARAM, VoidType::getType(), line_no);
 
     // 创建参数类型节点 (目前只支持int类型)
     type_attr param_type{BasicType::TYPE_INT, (int64_t) line_no};
