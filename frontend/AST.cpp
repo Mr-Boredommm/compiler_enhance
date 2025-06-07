@@ -645,7 +645,11 @@ ast_node * create_logical_not_expr(ast_node * operand_node)
 ast_node * create_func_formal_param(uint32_t line_no, const char * param_name)
 {
     // 创建形参节点
-    ast_node * param_node = new ast_node(ast_operator_type::AST_OP_FUNC_FORMAL_PARAM, VoidType::getType(), line_no);
+    ast_node * param_node =
+        new ast_node(ast_operator_type::AST_OP_FUNC_FORMAL_PARAM, IntegerType::getTypeInt(), line_no);
+
+    // 设置形参节点的名称（用于IR生成时直接访问）
+    param_node->name = param_name;
 
     // 创建参数类型节点 (目前只支持int类型)
     type_attr param_type{BasicType::TYPE_INT, (int64_t) line_no};

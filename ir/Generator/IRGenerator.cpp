@@ -823,6 +823,13 @@ bool IRGenerator::ir_leaf_node_var_id(ast_node * node)
 
     val = module->findVarValue(node->name);
 
+    // 检查是否找到变量
+    if (val == nullptr) {
+        // 输出错误信息
+        std::cerr << "Error: Undefined variable '" << node->name << "' at line " << node->line_no << std::endl;
+        return false;
+    }
+
     node->val = val;
 
     return true;
