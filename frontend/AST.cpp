@@ -626,3 +626,26 @@ ast_node * create_logical_not_expr(ast_node * operand_node)
 
     return node;
 }
+
+/// @brief 创建函数形参节点
+/// @param line_no 行号
+/// @param param_name 参数名
+/// @return 创建的形参节点
+ast_node * create_func_formal_param(uint32_t line_no, const char * param_name)
+{
+    // 创建形参节点
+    ast_node * param_node = ast_node::New(ast_operator_type::AST_OP_FUNC_FORMAL_PARAM, line_no);
+
+    // 创建参数类型节点 (目前只支持int类型)
+    type_attr param_type{BasicType::TYPE_INT, (int64_t) line_no};
+    ast_node * type_node = create_type_node(param_type);
+
+    // 创建参数名节点
+    ast_node * name_node = ast_node::New(param_name, line_no);
+
+    // 插入子节点：类型和名字
+    param_node->insert_son_node(type_node);
+    param_node->insert_son_node(name_node);
+
+    return param_node;
+}

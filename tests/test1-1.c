@@ -1,32 +1,21 @@
-int FourWhile() {
-	int a;
-	a = 5;
-	int b;
-	int c;
-	b = 6;
-	c = 7;
-	int d;
-	d = 10;
-	while (a < 20) {
-	  a = a + 3;
-	  while(b < 10){
-		b = b + 1;
-		while(c == 7){
-		  c = c - 1;
-		  while(d < 20){
-			d = d + 3;
-		  }
-		  d = d - 1;
-		}
-		c = c + 1;
-	  }
-	  b = b - 2;
-	}
-	
-	return (a + (b + d) + c);
-  }
-  
-  int main() {
-	return FourWhile();
-  }
-  
+// 测试带参数的函数定义和调用
+int add(int a, int b)
+{
+    return a + b;
+}
+
+void print_result(int result)
+{
+    // 这是一个void函数
+    return;
+}
+
+int main()
+{
+    int x, y, sum;
+    x = 5;
+    y = 3;
+    sum = add(x, y);
+    print_result(sum);
+    return sum;
+}
