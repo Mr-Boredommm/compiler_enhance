@@ -17,6 +17,7 @@
 
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 #include "GlobalValue.h"
 #include "FunctionType.h"
@@ -149,6 +150,17 @@ public:
     /// @brief 清理函数内申请的资源
     void Delete();
 
+    /// @brief 为参数创建本地变量覆盖（用于参数被赋值的情况）
+    /// @param paramName 参数名称
+    /// @param paramType 参数类型
+    /// @return 创建的本地变量
+    LocalVariable * createParamOverride(const std::string & paramName, Type * paramType);
+
+    /// @brief 查找参数的覆盖变量
+    /// @param paramName 参数名称
+    /// @return 覆盖变量，如果不存在则返回nullptr
+    LocalVariable * findParamOverride(const std::string & paramName);
+
     ///
     /// @brief 函数内的Value重命名，用于IR指令的输出
     ///
@@ -250,4 +262,9 @@ private:
     /// @brief 累计的实参个数，用于ARG指令的统计
     ///
     int32_t realArgCount = 0;
+
+    ///
+    /// @brief 参数名到本地变量的映射，用于处理参数被赋值的情况
+    ///
+    std::unordered_map<std::string, LocalVariable *> paramOverrides;
 };

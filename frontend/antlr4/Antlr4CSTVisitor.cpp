@@ -456,17 +456,44 @@ std::any MiniCCSTVisitor::visitVarDecl(MiniCParser::VarDeclContext * ctx)
     type_attr typeAttr{BasicType::TYPE_INT, (int64_t) ctx->T_INT()->getSymbol()->getLine()};
 
     for (auto & varCtx: ctx->varDef()) {
-        // 变量名节点
-        ast_node * id_node = std::any_cast<ast_node *>(visitVarDef(varCtx));
+        // 变量定义节点（可能包含赋值）
+        ast_node * varDefNode = std::any_cast<ast_node *>(visitVarDef(varCtx));
 
-        // 创建类型节点
-        ast_node * type_node = create_type_node(typeAttr);
+        // 检查是否是赋值节点（即变量带初始化）
+        if (varDefNode->node_type == ast_operator_type::AST_OP_ASSIGN) {
+            // 是赋值节点，左子节点是变量名，右子节点是初始化表达式
+            ast_node * varNameNode = varDefNode->sons[0];  // 变量名节点
+            ast_node * initExprNode = varDefNode->sons[1]; // 初始化表达式节点
 
-        // 创建变量定义节点
-        ast_node * decl_node = ast_node::New(ast_operator_type::AST_OP_VAR_DECL, type_node, id_node, nullptr);
+            // 创建类型节点
+            ast_node * type_node = create_type_node(typeAttr);
 
-        // 插入到变量声明语句
-        (void) stmt_node->insert_son_node(decl_node);
+            // 创建变量声明节点（不包含初始化）
+            ast_node * decl_node = ast_node::New(ast_operator_type::AST_OP_VAR_DECL, type_node, varNameNode, nullptr);
+
+            // 插入变量声明到语句块
+            (void) stmt_node->insert_son_node(decl_node);
+
+            // 创建新的赋值节点，使用克隆的变量名节点
+            ast_node * clonedVarNode = ast_node::New(varNameNode->name, varNameNode->line_no);
+            ast_node * assignNode =
+                ast_node::New(ast_operator_type::AST_OP_ASSIGN, clonedVarNode, initExprNode, nullptr);
+
+            // 插入赋值语句到语句块
+            (void) stmt_node->insert_son_node(assignNode);
+        } else {
+            // 纯变量声明，没有初始化
+            ast_node * varNameNode = varDefNode; // 直接就是变量名节点
+
+            // 创建类型节点
+            ast_node * type_node = create_type_node(typeAttr);
+
+            // 创建变量定义节点
+            ast_node * decl_node = ast_node::New(ast_operator_type::AST_OP_VAR_DECL, type_node, varNameNode, nullptr);
+
+            // 插入到变量声明语句
+            (void) stmt_node->insert_son_node(decl_node);
+        }
     }
 
     return stmt_node;
@@ -474,14 +501,27 @@ std::any MiniCCSTVisitor::visitVarDecl(MiniCParser::VarDeclContext * ctx)
 
 std::any MiniCCSTVisitor::visitVarDef(MiniCParser::VarDefContext * ctx)
 {
-    // varDef: T_ID;
+    // varDef: T_ID (T_ASSIGN expr)?;
 
     auto varId = ctx->T_ID()->getText();
 
     // 获取行号
     int64_t lineNo = (int64_t) ctx->T_ID()->getSymbol()->getLine();
 
-    return ast_node::New(varId, lineNo);
+    // 创建变量名节点
+    ast_node * varNode = ast_node::New(varId, lineNo);
+
+    // 检查是否有初始化表达式
+    if (ctx->T_ASSIGN() && ctx->expr()) {
+        // 有初始化表达式，创建赋值节点
+        auto initExpr = std::any_cast<ast_node *>(visitExpr(ctx->expr()));
+
+        // 创建赋值节点 (AST_OP_ASSIGN)，左侧是变量名，右侧是初始化表达式
+        return ast_node::New(ast_operator_type::AST_OP_ASSIGN, varNode, initExpr, nullptr);
+    } else {
+        // 没有初始化，只返回变量名节点
+        return varNode;
+    }
 }
 
 std::any MiniCCSTVisitor::visitBasicType(MiniCParser::BasicTypeContext * ctx)

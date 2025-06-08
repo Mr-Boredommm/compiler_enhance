@@ -76,6 +76,13 @@ void Module::leaveScope()
     scopeStack->leaveScope();
 }
 
+/// @brief 直接将值添加到当前作用域栈中，不进行重定义检查
+/// @param value 要添加的值
+void Module::insertValueToCurrentScope(Value * value)
+{
+    scopeStack->insertValue(value);
+}
+
 ///
 /// @brief 在遍历抽象语法树的过程中，获取当前正在处理的函数。在函数外处理时返回空指针。
 /// @return Function* 当前处理的函数对象
@@ -225,6 +232,16 @@ Value * Module::newVarValue(Type * type, std::string name)
             minic_log(LOG_ERROR, "变量(%s)已经存在", name.c_str());
             return nullptr;
         }
+
+        // 额外检查：如果在所有作用域中找到了变量（包括形参），则不需要创建新变量
+        Value * existingValue = scopeStack->findAllScope(name);
+        if (existingValue) {
+            // 找到了现有的变量（可能是形参），直接返回它
+            minic_log(LOG_INFO, "找到现有变量: %s，不创建新变量", name.c_str());
+            return existingValue;
+        }
+
+        minic_log(LOG_INFO, "未找到现有变量: %s，将创建新变量", name.c_str());
     } else if (!currentFunc) {
         // 全局变量要求name不能为空串，必须有效
         minic_log(LOG_ERROR, "变量名为空");

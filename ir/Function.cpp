@@ -91,7 +91,7 @@ void Function::toString(std::string & str)
             str += ", ";
         }
 
-        std::string param_str = param->getType()->toString() + param->getIRName();
+        std::string param_str = param->getType()->toString() + " " + param->getIRName();
 
         str += param_str;
     }
@@ -262,6 +262,37 @@ MemVariable * Function::newMemVariable(Type * type)
     return memValue;
 }
 
+/// @brief 为参数创建本地变量覆盖（用于参数被赋值的情况）
+/// @param paramName 参数名称
+/// @param paramType 参数类型
+/// @return 创建的本地变量
+LocalVariable * Function::createParamOverride(const std::string & paramName, Type * paramType)
+{
+    // 检查是否已经存在覆盖变量
+    auto it = paramOverrides.find(paramName);
+    if (it != paramOverrides.end()) {
+        return it->second;
+    }
+
+    // 创建新的本地变量
+    LocalVariable * localVar = newLocalVarValue(paramType, paramName + "_local");
+    paramOverrides[paramName] = localVar;
+
+    return localVar;
+}
+
+/// @brief 查找参数的覆盖变量
+/// @param paramName 参数名称
+/// @return 覆盖变量，如果不存在则返回nullptr
+LocalVariable * Function::findParamOverride(const std::string & paramName)
+{
+    auto it = paramOverrides.find(paramName);
+    if (it != paramOverrides.end()) {
+        return it->second;
+    }
+    return nullptr;
+}
+
 /// @brief 清理函数内申请的资源
 void Function::Delete()
 {
@@ -286,25 +317,31 @@ void Function::renameIR()
         return;
     }
 
-    int32_t nameIndex = 0;
+    // 使用分离的计数器为不同类型的值命名
+    int32_t paramIndex = 0;
+    int32_t localVarIndex = 0;
+    int32_t tempIndex = 0;
+    int32_t labelIndex = 0;
 
-    // 形式参数重命名
+    // 形式参数重命名 - 使用临时变量前缀
     for (auto & param: this->params) {
-        param->setIRName(IR_TEMP_VARNAME_PREFIX + std::to_string(nameIndex++));
+        param->setIRName(IR_TEMP_VARNAME_PREFIX + std::to_string(paramIndex++));
     }
+
+    // 临时变量索引从参数数量之后开始
+    tempIndex = paramIndex;
 
     // 局部变量重命名
     for (auto & var: this->varsVector) {
-
-        var->setIRName(IR_LOCAL_VARNAME_PREFIX + std::to_string(nameIndex++));
+        var->setIRName(IR_LOCAL_VARNAME_PREFIX + std::to_string(localVarIndex++));
     }
 
     // 遍历所有的指令进行命名
     for (auto inst: this->getInterCode().getInsts()) {
         if (inst->getOp() == IRInstOperator::IRINST_OP_LABEL) {
-            inst->setIRName(IR_LABEL_PREFIX + std::to_string(nameIndex++));
+            inst->setIRName(IR_LABEL_PREFIX + std::to_string(labelIndex++));
         } else if (inst->hasResultValue()) {
-            inst->setIRName(IR_TEMP_VARNAME_PREFIX + std::to_string(nameIndex++));
+            inst->setIRName(IR_TEMP_VARNAME_PREFIX + std::to_string(tempIndex++));
         }
     }
 }
