@@ -248,20 +248,8 @@ bool IRGenerator::ir_function_define(ast_node * node)
     }
     node->blockInsts.addInst(param_node->blockInsts);
 
-    // 为每个函数参数创建对应的局部变量，并生成赋值指令
-    auto & params = newFunc->getParams();
-    for (auto formalParam: params) {
-        // 为参数创建一个对应的局部变量
-        LocalVariable * localVar = static_cast<LocalVariable *>(module->newVarValue(formalParam->getType()));
-        localVar->setName(formalParam->getName()); // 使用相同的名称
-
-        // 生成从参数到局部变量的移动指令
-        MoveInstruction * moveInst = new MoveInstruction(newFunc, localVar, formalParam);
-        node->blockInsts.addInst(moveInst);
-
-        // 调试信息
-        minic_log(LOG_INFO, "为参数 %s 创建局部变量并生成赋值指令", formalParam->getName().c_str());
-    }
+    // 注意：参数的局部变量副本将在参数被赋值时按需创建
+    // 这样可以避免为未被修改的参数创建不必要的局部变量副本
 
     // 新建一个Value，用于保存函数的返回值，如果没有返回值可不用申请
     LocalVariable * retValue = nullptr;

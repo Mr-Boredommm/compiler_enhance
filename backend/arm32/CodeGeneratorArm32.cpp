@@ -30,6 +30,7 @@
 #include "FuncCallInstruction.h"
 #include "ArgInstruction.h"
 #include "MoveInstruction.h"
+#include "MoveInstruction.h"
 
 /// @brief 构造函数
 /// @param tab 符号表
@@ -231,12 +232,34 @@ void CodeGeneratorArm32::adjustFormalParamInsts(Function * func)
     // 函数形参的前四个实参值采用的是寄存器传值，后面栈传递
 
     auto & params = func->getParams();
+    auto & insts = func->getInterCode().getInsts();
+
+    // 查找entry指令的位置，用于插入形参赋值指令
+    auto pIter = insts.begin();
+    while (pIter != insts.end() && (*pIter)->getOp() != IRInstOperator::IRINST_OP_ENTRY) {
+        pIter++;
+    }
+
+    if (pIter != insts.end()) {
+        pIter++; // 移动到entry指令之后
+    }
 
     // 形参的前四个通过寄存器来传值R0-R3
     for (int k = 0; k < (int) params.size() && k <= 3; k++) {
 
-        // 前四个设置分配寄存器
-        params[k]->setRegId(k);
+        // 创建一个新的寄存器变量来表示传入的参数值
+        RegVariable * paramReg = new RegVariable(params[k]->getType(), PlatformArm32::regName[k], k);
+
+        // 创建从寄存器参数到局部变量的赋值指令
+        Instruction * assignInst = new MoveInstruction(func, params[k], paramReg);
+
+        // 将赋值指令插入到entry指令之后
+        if (pIter != insts.end()) {
+            pIter = insts.insert(pIter, assignInst);
+            pIter++;
+        } else {
+            insts.push_back(assignInst);
+        }
     }
 
     // 根据ARM版C语言的调用约定，除前4个外的实参进行值传递，逆序入栈
@@ -405,6 +428,27 @@ void CodeGeneratorArm32::stackAlloc(Function * func)
 
             // 局部变量偏移设置
             var->setMemoryAddr(ARM32_FP_REG_NO, -sp_esp);
+        }
+    }
+
+    // 遍历函数形参列表，为前4个形参分配栈空间（它们也需要内存地址）
+    auto & params = func->getParams();
+    for (int k = 0; k < (int) params.size() && k <= 3; k++) {
+        FormalParam * param = params[k];
+
+        // 检查形参是否已经分配了内存地址
+        if ((param->getRegId() == -1) && (!param->getMemoryAddr())) {
+
+            int32_t size = param->getType()->getSize();
+
+            // 32位ARM平台按照4字节的大小整数倍分配形参
+            size = (size + 3) & ~3;
+
+            // 累计当前作用域大小
+            sp_esp += size;
+
+            // 形参偏移设置
+            param->setMemoryAddr(ARM32_FP_REG_NO, -sp_esp);
         }
     }
 

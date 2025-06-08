@@ -277,6 +277,15 @@ Value * Module::newVarValue(Type * type, std::string name)
 /// @return 指针有效则找到，空指针未找到
 Value * Module::findVarValue(std::string name)
 {
+    // 如果当前在函数内，先检查是否有参数覆盖变量
+    if (currentFunc != nullptr) {
+        LocalVariable * overrideVar = currentFunc->findParamOverride(name);
+        if (overrideVar != nullptr) {
+            // 找到参数覆盖变量，优先返回
+            return overrideVar;
+        }
+    }
+
     // 逐层级作用域查找
     Value * tempValue = scopeStack->findAllScope(name);
 
