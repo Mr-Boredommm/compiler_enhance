@@ -65,6 +65,10 @@ public:
     /// @brief 退出作用域，如退出函数体块、语句块等
     void leaveScope();
 
+    /// @brief 直接将值添加到当前作用域栈中，不进行重定义检查
+    /// @param value 要添加的值
+    void insertValueToCurrentScope(Value * value);
+
     ///
     /// @brief 在遍历抽象语法树的过程中，获取当前正在处理的函数。在函数外处理时返回空指针。
     ///

@@ -47,6 +47,9 @@ string getNodeName(ast_node * astnode)
         case ast_operator_type::AST_OP_LEAF_LITERAL_FLOAT:
             nodeName = "FLOAT: " + to_string(astnode->float_val);
             break;
+        case ast_operator_type::AST_OP_LEAF_LITERAL_LL:
+            nodeName = "LONGLONG: " + to_string(astnode->longlong_val);
+            break;
         case ast_operator_type::AST_OP_LEAF_VAR_ID:
             nodeName = "ID: " + astnode->name;
             break;
@@ -67,6 +70,9 @@ string getNodeName(ast_node * astnode)
             break;
         case ast_operator_type::AST_OP_FUNC_FORMAL_PARAMS:
             nodeName = "formal-params";
+            break;
+        case ast_operator_type::AST_OP_FUNC_FORMAL_PARAM:
+            nodeName = "formal-param";
             break;
         case ast_operator_type::AST_OP_VAR_DECL:
             nodeName = "var-decl";

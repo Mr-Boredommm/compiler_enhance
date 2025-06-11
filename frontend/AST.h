@@ -241,6 +241,12 @@ public:
     /// @return 创建的节点
     static ast_node * New(ast_operator_type type, ...);
 
+    /// @brief 创建指定节点类型的节点
+    /// @param type 节点类型
+    /// @param line_no 行号
+    /// @return 创建的节点
+    static ast_node * New(ast_operator_type type, int64_t line_no);
+
     /// @brief 创建无符号整数的叶子节点
     /// @param val 词法值
     /// @param line_no 行号

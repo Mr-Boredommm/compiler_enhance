@@ -18,6 +18,7 @@
 #include "ScopeStack.h"
 #include "Common.h"
 #include "VoidType.h"
+#include "PointerType.h"
 
 Module::Module(std::string _name) : name(_name)
 {
@@ -32,6 +33,35 @@ Module::Module(std::string _name) : name(_name)
     (void) newFunction("getint", IntegerType::getTypeInt(), {}, true);
     // 加入内置函数putch
     (void) newFunction("putch", VoidType::getType(), {new FormalParam{IntegerType::getTypeInt(), ""}}, true);
+
+    // 加入剩余的内置函数
+    // getch() - int函数，字符输入
+    (void) newFunction("getch", IntegerType::getTypeInt(), {}, true);
+
+    // getarray(int[]) - int函数，数组输入，使用int*表示int[]
+    (void) newFunction(
+        "getarray",
+        IntegerType::getTypeInt(),
+        {new FormalParam{const_cast<Type *>(static_cast<const Type *>(PointerType::get(IntegerType::getTypeInt()))),
+                         ""}},
+        true);
+
+    // putarray(int, int[]) - void函数，数组输出
+    (void) newFunction(
+        "putarray",
+        VoidType::getType(),
+        {new FormalParam{IntegerType::getTypeInt(), ""},
+         new FormalParam{const_cast<Type *>(static_cast<const Type *>(PointerType::get(IntegerType::getTypeInt()))),
+                         ""}},
+        true);
+
+    // putstr(char*) - void函数，字符串输出，使用int*表示char*
+    (void) newFunction(
+        "putstr",
+        VoidType::getType(),
+        {new FormalParam{const_cast<Type *>(static_cast<const Type *>(PointerType::get(IntegerType::getTypeInt()))),
+                         ""}},
+        true);
 }
 
 /// @brief 进入作用域，如进入函数体块、语句块等
@@ -44,6 +74,13 @@ void Module::enterScope()
 void Module::leaveScope()
 {
     scopeStack->leaveScope();
+}
+
+/// @brief 直接将值添加到当前作用域栈中，不进行重定义检查
+/// @param value 要添加的值
+void Module::insertValueToCurrentScope(Value * value)
+{
+    scopeStack->insertValue(value);
 }
 
 ///
@@ -195,6 +232,16 @@ Value * Module::newVarValue(Type * type, std::string name)
             minic_log(LOG_ERROR, "变量(%s)已经存在", name.c_str());
             return nullptr;
         }
+
+        // 额外检查：如果在所有作用域中找到了变量（包括形参），则不需要创建新变量
+        Value * existingValue = scopeStack->findAllScope(name);
+        if (existingValue) {
+            // 找到了现有的变量（可能是形参），直接返回它
+            minic_log(LOG_INFO, "找到现有变量: %s，不创建新变量", name.c_str());
+            return existingValue;
+        }
+
+        minic_log(LOG_INFO, "未找到现有变量: %s，将创建新变量", name.c_str());
     } else if (!currentFunc) {
         // 全局变量要求name不能为空串，必须有效
         minic_log(LOG_ERROR, "变量名为空");
@@ -230,6 +277,15 @@ Value * Module::newVarValue(Type * type, std::string name)
 /// @return 指针有效则找到，空指针未找到
 Value * Module::findVarValue(std::string name)
 {
+    // 如果当前在函数内，先检查是否有参数覆盖变量
+    if (currentFunc != nullptr) {
+        LocalVariable * overrideVar = currentFunc->findParamOverride(name);
+        if (overrideVar != nullptr) {
+            // 找到参数覆盖变量，优先返回
+            return overrideVar;
+        }
+    }
+
     // 逐层级作用域查找
     Value * tempValue = scopeStack->findAllScope(name);
 

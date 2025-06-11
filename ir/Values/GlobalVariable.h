@@ -89,7 +89,7 @@ public:
     ///
     void toDeclareString(std::string & str)
     {
-        str = "declare " + getType()->toString() + " " + getIRName();
+        str = "declare " + getType()->toString() + " " + getIRName() + " = 0";
     }
 
 private:

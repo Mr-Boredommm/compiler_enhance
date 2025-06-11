@@ -248,6 +248,9 @@ bool IRGenerator::ir_function_define(ast_node * node)
     }
     node->blockInsts.addInst(param_node->blockInsts);
 
+    // 注意：参数的局部变量副本将在参数被赋值时按需创建
+    // 这样可以避免为未被修改的参数创建不必要的局部变量副本
+
     // 新建一个Value，用于保存函数的返回值，如果没有返回值可不用申请
     LocalVariable * retValue = nullptr;
     if (!type_node->type->isVoidType()) {
@@ -257,7 +260,21 @@ bool IRGenerator::ir_function_define(ast_node * node)
     }
     newFunc->setReturnValue(retValue);
 
-    // 这里最好设置返回值变量的初值为0，以便在没有返回值时能够返回0
+    // 功能要求6和7：为int类型函数初始化返回值变量，特别是main函数初始化为0
+    if (retValue) {
+        ConstInt * initValue;
+        if (name_node->name == "main") {
+            // 功能要求7：main函数初始化返回值为0，避免进程退出状态的随机值问题
+            initValue = module->newConstInt(0);
+        } else {
+            // 其他int类型函数也初始化为0
+            initValue = module->newConstInt(0);
+        }
+
+        // 创建初始化指令，将返回值变量初始化
+        MoveInstruction * initRetInst = new MoveInstruction(newFunc, retValue, initValue);
+        node->blockInsts.addInst(initRetInst);
+    }
 
     // 函数内已经进入作用域，内部不再需要做变量的作用域管理
     block_node->needScope = false;
@@ -298,12 +315,42 @@ bool IRGenerator::ir_function_define(ast_node * node)
 /// @return 翻译是否成功，true：成功，false：失败
 bool IRGenerator::ir_function_formal_params(ast_node * node)
 {
-    // TODO 目前形参还不支持，直接返回true
+    // 检查是否有形参
+    if (!node || node->sons.empty()) {
+        // 没有形参，直接返回成功
+        return true;
+    }
 
-    // 每个形参变量都创建对应的临时变量，用于表达实参转递的值
-    // 而真实的形参则创建函数内的局部变量。
-    // 然后产生赋值指令，用于把表达实参值的临时变量拷贝到形参局部变量上。
-    // 请注意这些指令要放在Entry指令后面，因此处理的先后上要注意。
+    // 获取当前正在处理的函数
+    Function * currentFunc = module->getCurrentFunction();
+    if (!currentFunc) {
+        // 当前没有函数上下文，错误
+        return false;
+    }
+
+    // 遍历每个形参节点
+    for (auto formalParamNode: node->sons) {
+        // 形参节点应该包含类型和名称信息
+        if (formalParamNode->node_type != ast_operator_type::AST_OP_FUNC_FORMAL_PARAM) {
+            continue;
+        }
+
+        // 获取形参的类型和名称
+        std::string paramName = formalParamNode->name;
+        Type * paramType = formalParamNode->type;
+
+        // 创建形参对象
+        FormalParam * formalParam = new FormalParam(paramType, paramName);
+
+        // 将形参添加到函数的形参列表中
+        currentFunc->getParams().push_back(formalParam);
+
+        // 将形参直接添加到作用域中
+        module->insertValueToCurrentScope(formalParam);
+
+        // 调试信息：确认形参已添加到作用域
+        minic_log(LOG_INFO, "形参 %s 已添加到作用域", paramName.c_str());
+    }
 
     return true;
 }
@@ -326,6 +373,23 @@ bool IRGenerator::ir_function_call(ast_node * node)
     int64_t lineno = node->sons[0]->line_no;
 
     ast_node * paramsNode = node->sons[1];
+
+    // 先检查是否在当前作用域中存在同名局部变量
+    Value * varValue = module->findVarValue(funcName);
+
+    // 检查变量是否为局部变量，而不是全局变量
+    LocalVariable * localVar = dynamic_cast<LocalVariable *>(varValue);
+
+    // 只有当找到的是局部变量时，才将其作为变量引用处理
+    if (localVar != nullptr) {
+        // 如果存在同名局部变量，我们把它当作变量处理，而不是函数调用
+        ast_node var_node(funcName, node->sons[0]->line_no);
+        var_node.val = varValue;
+
+        // 把变量节点的值赋给当前节点
+        node->val = varValue;
+        return true;
+    }
 
     // 根据函数名查找函数，看是否存在。若不存在则出错
     // 这里约定函数必须先定义后使用
@@ -674,7 +738,41 @@ bool IRGenerator::ir_assign(ast_node * node)
     ast_node * son1_node = node->sons[0];
     ast_node * son2_node = node->sons[1];
 
+    // 调试信息：输出赋值节点的左右操作数
+    if (son1_node->node_type == ast_operator_type::AST_OP_LEAF_VAR_ID) {
+        minic_log(LOG_INFO, "赋值左侧变量名: %s", son1_node->name.c_str());
+    }
+
+    if (son2_node->node_type == ast_operator_type::AST_OP_LEAF_LITERAL_UINT) {
+        minic_log(LOG_INFO, "赋值右侧整数值: %d", son2_node->integer_val);
+    }
+
     // 赋值节点，自右往左运算
+
+    // 首先检查左侧是否为参数，如果是，需要预先创建覆盖变量
+    Function * currentFunc = module->getCurrentFunction();
+    if (son1_node->node_type == ast_operator_type::AST_OP_LEAF_VAR_ID && currentFunc != nullptr) {
+        std::string varName = son1_node->name;
+
+        // 在当前作用域中查找这个变量
+        Value * val = module->findVarValue(varName);
+        FormalParam * formalParam = dynamic_cast<FormalParam *>(val);
+
+        if (formalParam != nullptr) {
+            // 这是一个函数参数，需要预先创建本地变量覆盖
+            LocalVariable * overrideVar =
+                currentFunc->createParamOverride(formalParam->getName(), formalParam->getType());
+
+            // 首先将参数的当前值复制到覆盖变量（这是参数的初始值）
+            MoveInstruction * initInst = new MoveInstruction(currentFunc, overrideVar, formalParam);
+            node->blockInsts.addInst(initInst);
+
+            minic_log(LOG_INFO,
+                      "预创建参数 %s 的覆盖变量 %s 并初始化",
+                      formalParam->getName().c_str(),
+                      overrideVar->getName().c_str());
+        }
+    }
 
     // 赋值运算符的左侧操作数
     ast_node * left = ir_visit_ast_node(son1_node);
@@ -694,6 +792,13 @@ bool IRGenerator::ir_assign(ast_node * node)
     // 这里只处理整型的数据，如需支持实数，则需要针对类型进行处理
 
     MoveInstruction * movInst = new MoveInstruction(module->getCurrentFunction(), left->val, right->val);
+
+    // 调试信息：输出移动指令
+    std::string infoStr = "生成移动指令: 从 ";
+    infoStr += right->val->getName();
+    infoStr += " 到 ";
+    infoStr += left->val->getName();
+    minic_log(LOG_INFO, "%s", infoStr.c_str());
 
     // 创建临时变量保存IR的值，以及线性IR指令
     node->blockInsts.addInst(right->blockInsts);
@@ -771,7 +876,25 @@ bool IRGenerator::ir_leaf_node_var_id(ast_node * node)
     // 查找ID型Value
     // 变量，则需要在符号表中查找对应的值
 
+    // 首先检查是否有参数覆盖变量
+    Function * currentFunc = module->getCurrentFunction();
+    if (currentFunc != nullptr) {
+        LocalVariable * overrideVar = currentFunc->findParamOverride(node->name);
+        if (overrideVar != nullptr) {
+            // 找到参数覆盖变量，优先使用它
+            node->val = overrideVar;
+            return true;
+        }
+    }
+
     val = module->findVarValue(node->name);
+
+    // 检查是否找到变量
+    if (val == nullptr) {
+        // 输出错误信息
+        std::cerr << "Error: Undefined variable '" << node->name << "' at line " << node->line_no << std::endl;
+        return false;
+    }
 
     node->val = val;
 
@@ -817,16 +940,43 @@ bool IRGenerator::ir_declare_statment(ast_node * node)
 {
     bool result = false;
 
-    for (auto & child: node->sons) {
+    // 调试信息：输出声明语句的子节点数量
+    minic_log(LOG_INFO, "声明语句子节点数量: %zu", node->sons.size());
 
-        // 遍历每个变量声明
-        result = ir_variable_declare(child);
-        if (!result) {
-            break;
+    // 先处理所有变量声明
+    for (auto & child: node->sons) {
+        if (child->node_type == ast_operator_type::AST_OP_VAR_DECL) {
+            // 变量声明
+            minic_log(LOG_INFO, "处理变量声明节点");
+            result = ir_variable_declare(child);
+            if (!result) {
+                return false;
+            }
+            // 将变量声明的指令添加到当前节点的指令列表中
+            node->blockInsts.addInst(child->blockInsts);
         }
     }
 
-    return result;
+    // 再处理所有变量初始化
+    for (auto & child: node->sons) {
+        if (child->node_type == ast_operator_type::AST_OP_ASSIGN) {
+            // 变量赋值（变量初始化）
+            minic_log(LOG_INFO, "处理变量初始化节点");
+            result = ir_assign(child);
+            if (!result) {
+                return false;
+            }
+            // 将变量初始化的指令添加到当前节点的指令列表中
+            node->blockInsts.addInst(child->blockInsts);
+        } else if (child->node_type != ast_operator_type::AST_OP_VAR_DECL) {
+            // 未知节点类型
+            minic_log(LOG_ERROR, "未知的声明语句子节点类型: %d", static_cast<int>(child->node_type));
+            result = false;
+            return false;
+        }
+    }
+
+    return true;
 }
 
 /// @brief 变量定声明节点翻译成线性中间IR
@@ -835,10 +985,26 @@ bool IRGenerator::ir_declare_statment(ast_node * node)
 bool IRGenerator::ir_variable_declare(ast_node * node)
 {
     // 共有两个孩子，第一个类型，第二个变量名
+    std::string varName = node->sons[1]->name;
+    Type * varType = node->sons[0]->type;
+
+    minic_log(LOG_INFO, "正在声明变量: %s", varName.c_str());
+
+    // 检查是否已经存在同名的变量（包括形参）
+    Value * existingVar = module->findVarValue(varName);
+    if (existingVar != nullptr) {
+        // 如果是形参，直接使用它，不创建新的局部变量
+        FormalParam * formalParam = dynamic_cast<FormalParam *>(existingVar);
+        if (formalParam != nullptr) {
+            minic_log(LOG_INFO, "变量 %s 是形参，不创建新的局部变量", varName.c_str());
+            node->val = existingVar;
+            return true;
+        }
+        minic_log(LOG_INFO, "找到现有变量 %s，类型为: %s", varName.c_str(), typeid(*existingVar).name());
+    }
 
     // TODO 这里可强化类型等检查
-
-    node->val = module->newVarValue(node->sons[0]->type, node->sons[1]->name);
+    node->val = module->newVarValue(varType, varName);
 
     return true;
 }

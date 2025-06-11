@@ -13,8 +13,18 @@ grammar MiniC;
 // 源文件编译单元定义
 compileUnit: (funcDef | varDecl)* EOF;
 
-// 函数定义，目前不支持形参，也不支持返回void类型等
-funcDef: T_INT T_ID T_L_PAREN T_R_PAREN block;
+// 函数定义，支持形参，支持返回int和void类型
+funcDef:
+	funcReturnType T_ID T_L_PAREN formalParamList? T_R_PAREN block;
+
+// 函数返回类型
+funcReturnType: T_INT | T_VOID;
+
+// 形参列表
+formalParamList: formalParam (T_COMMA formalParam)*;
+
+// 形参定义
+formalParam: T_INT T_ID;
 
 // 语句块看用作函数体，这里允许多个语句，并且不含任何语句
 block: T_L_BRACE blockItemList? T_R_BRACE;
@@ -25,18 +35,18 @@ blockItemList: blockItem+;
 // 每个Item可以是一个语句，或者变量声明语句
 blockItem: statement | varDecl;
 
-// 变量声明，目前不支持变量含有初值
-varDecl: basicType varDef (T_COMMA varDef)* T_SEMICOLON;
+// 变量声明，支持变量初始化
+varDecl: T_INT varDef (T_COMMA varDef)* T_SEMICOLON;
 
-// 基本类型
-basicType: T_INT;
+// 基本类型（用于函数返回类型）
+basicType: T_INT | T_VOID;
 
-// 变量定义
-varDef: T_ID;
+// 变量定义，支持可选的初始化
+varDef: T_ID (T_ASSIGN expr)?;
 
 // 语句支持多种形式，添加了if语句、while语句、break和continue语句
 statement:
-	T_RETURN expr T_SEMICOLON										# returnStatement
+	T_RETURN expr? T_SEMICOLON										# returnStatement
 	| lVal T_ASSIGN expr T_SEMICOLON								# assignStatement
 	| block															# blockStatement
 	| T_IF T_L_PAREN expr T_R_PAREN statement (T_ELSE statement)?	# ifStatement

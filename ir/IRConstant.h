@@ -18,6 +18,7 @@
 #define IR_GLOBAL_VARNAME_PREFIX "@"
 #define IR_LOCAL_VARNAME_PREFIX "%l"
 #define IR_TEMP_VARNAME_PREFIX "%t"
+#define IR_PARAM_VARNAME_PREFIX "%p"
 #define IR_MEM_VARNAME_PREFIX "%m"
 #define IR_LABEL_PREFIX ".L"
 

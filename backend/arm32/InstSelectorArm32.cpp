@@ -24,6 +24,9 @@
 #include "PointerType.h"
 #include "RegVariable.h"
 #include "Function.h"
+#include "LocalVariable.h"
+#include "ConstInt.h"
+#include "IntegerType.h"
 
 #include "LabelInstruction.h"
 #include "GotoInstruction.h"
@@ -189,11 +192,10 @@ void InstSelectorArm32::translate_entry(Instruction * inst)
 /// @param inst IR指令
 void InstSelectorArm32::translate_exit(Instruction * inst)
 {
+    // 处理返回值
     if (inst->getOperandsNum()) {
-        // 存在返回值
+        // 存在返回值，直接加载到R0寄存器
         Value * retVal = inst->getOperand(0);
-
-        // 赋值给寄存器R0
         iloc.load_var(0, retVal);
     }
 
