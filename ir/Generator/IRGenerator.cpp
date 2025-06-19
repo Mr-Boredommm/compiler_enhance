@@ -38,6 +38,8 @@
 #include "IcmpInstruction.h"
 #include "BcInstruction.h"
 #include "RelationalOpGenerator.h"
+#include "Types/ArrayType.h"
+#include "Types/IntegerType.h"
 
 /// @brief 生成IR标签名称的计数器
 static int label_counter = 0;
@@ -89,6 +91,10 @@ IRGenerator::IRGenerator(ast_node * _root, Module * _module)
     ast2ir_handlers[ast_operator_type::AST_OP_WHILE] = &IRGenerator::ir_while;
     ast2ir_handlers[ast_operator_type::AST_OP_BREAK] = &IRGenerator::ir_break;
     ast2ir_handlers[ast_operator_type::AST_OP_CONTINUE] = &IRGenerator::ir_continue;
+
+    /* 数组操作 */
+    ast2ir_handlers[ast_operator_type::AST_OP_ARRAY_DEF] = &IRGenerator::ir_array_def;
+    ast2ir_handlers[ast_operator_type::AST_OP_ARRAY_ACCESS] = &IRGenerator::ir_array_access;
 
     /* 语句 */
     ast2ir_handlers[ast_operator_type::AST_OP_ASSIGN] = &IRGenerator::ir_assign;
@@ -339,6 +345,15 @@ bool IRGenerator::ir_function_formal_params(ast_node * node)
         std::string paramName = formalParamNode->name;
         Type * paramType = formalParamNode->type;
 
+        // 处理数组类型的形参
+        if (paramType->getTypeID() == Type::ArrayTyID) {
+            ArrayType * arrayType = static_cast<ArrayType *>(paramType);
+            // 对于数组类型的形参，需要将其第一维度设为0，表示是指针
+            Type * elementType = arrayType->getElementType();
+            paramType = ArrayType::get(elementType, 0);
+            minic_log(LOG_INFO, "数组形参 %s 被转换为指针类型", paramName.c_str());
+        }
+
         // 创建形参对象
         FormalParam * formalParam = new FormalParam(paramType, paramName);
 
@@ -415,7 +430,8 @@ bool IRGenerator::ir_function_call(ast_node * node)
 
         // 遍历参数列表，孩子是表达式
         // 这里自左往右计算表达式
-        for (auto son: paramsNode->sons) {
+        for (size_t i = 0; i < paramsNode->sons.size(); i++) {
+            ast_node * son = paramsNode->sons[i];
 
             // 遍历Block的每个语句，进行显示或者运算
             ast_node * temp = ir_visit_ast_node(son);
@@ -423,15 +439,34 @@ bool IRGenerator::ir_function_call(ast_node * node)
                 return false;
             }
 
-            realParams.push_back(temp->val);
+            // 获取实参值
+            Value * paramValue = temp->val;
+
+            // 特殊处理数组类型参数
+            if (i < calledFunction->getParams().size()) {
+                FormalParam * formalParam = calledFunction->getParams()[i];
+                Type * formalType = formalParam->getType();
+
+                // 如果形参是数组类型（第一维为0的数组）
+                if (formalType->getTypeID() == Type::ArrayTyID) {
+                    ArrayType * arrayType = static_cast<ArrayType *>(formalType);
+                    if (arrayType->getNumElements() == 0) {
+                        // 对于数组形参，传递的是数组的首地址
+                        // 这里我们不需要做特殊处理，因为数组变量本身就是指向首地址的
+                        minic_log(LOG_INFO, "传递数组参数 %s 到函数 %s", temp->name.c_str(), funcName.c_str());
+                    }
+                }
+            }
+
+            realParams.push_back(paramValue);
             node->blockInsts.addInst(temp->blockInsts);
         }
     }
 
-    // TODO 这里请追加函数调用的语义错误检查，这里只进行了函数参数的个数检查等，其它请自行追加。
+    // 检查函数参数的个数是否匹配
     if (realParams.size() != calledFunction->getParams().size()) {
         // 函数参数的个数不一致，语义错误
-        minic_log(LOG_ERROR, "第%lld行的被调用函数(%s)未定义或声明", (long long) lineno, funcName.c_str());
+        minic_log(LOG_ERROR, "第%lld行的被调用函数(%s)参数个数不匹配", (long long) lineno, funcName.c_str());
         return false;
     }
 
@@ -749,28 +784,38 @@ bool IRGenerator::ir_assign(ast_node * node)
 
     // 赋值节点，自右往左运算
 
-    // 首先检查左侧是否为参数，如果是，需要预先创建覆盖变量
-    Function * currentFunc = module->getCurrentFunction();
-    if (son1_node->node_type == ast_operator_type::AST_OP_LEAF_VAR_ID && currentFunc != nullptr) {
-        std::string varName = son1_node->name;
+    // 赋值运算符的右侧操作数
+    ast_node * right = ir_visit_ast_node(son2_node);
+    if (!right) {
+        // 某个变量没有定值
+        return false;
+    }
 
-        // 在当前作用域中查找这个变量
-        Value * val = module->findVarValue(varName);
-        FormalParam * formalParam = dynamic_cast<FormalParam *>(val);
+    // 处理左侧是变量的情况
+    if (son1_node->node_type == ast_operator_type::AST_OP_LEAF_VAR_ID) {
+        // 首先检查左侧是否为参数，如果是，需要预先创建覆盖变量
+        Function * currentFunc = module->getCurrentFunction();
+        if (currentFunc != nullptr) {
+            std::string varName = son1_node->name;
 
-        if (formalParam != nullptr) {
-            // 这是一个函数参数，需要预先创建本地变量覆盖
-            LocalVariable * overrideVar =
-                currentFunc->createParamOverride(formalParam->getName(), formalParam->getType());
+            // 在当前作用域中查找这个变量
+            Value * val = module->findVarValue(varName);
+            FormalParam * formalParam = dynamic_cast<FormalParam *>(val);
 
-            // 首先将参数的当前值复制到覆盖变量（这是参数的初始值）
-            MoveInstruction * initInst = new MoveInstruction(currentFunc, overrideVar, formalParam);
-            node->blockInsts.addInst(initInst);
+            if (formalParam != nullptr) {
+                // 这是一个函数参数，需要预先创建本地变量覆盖
+                LocalVariable * overrideVar =
+                    currentFunc->createParamOverride(formalParam->getName(), formalParam->getType());
 
-            minic_log(LOG_INFO,
-                      "预创建参数 %s 的覆盖变量 %s 并初始化",
-                      formalParam->getName().c_str(),
-                      overrideVar->getName().c_str());
+                // 首先将参数的当前值复制到覆盖变量（这是参数的初始值）
+                MoveInstruction * initInst = new MoveInstruction(currentFunc, overrideVar, formalParam);
+                node->blockInsts.addInst(initInst);
+
+                minic_log(LOG_INFO,
+                          "预创建参数 %s 的覆盖变量 %s 并初始化",
+                          formalParam->getName().c_str(),
+                          overrideVar->getName().c_str());
+            }
         }
     }
 
@@ -782,31 +827,27 @@ bool IRGenerator::ir_assign(ast_node * node)
         return false;
     }
 
-    // 赋值运算符的右侧操作数
-    ast_node * right = ir_visit_ast_node(son2_node);
-    if (!right) {
-        // 某个变量没有定值
-        return false;
-    }
-
-    // 这里只处理整型的数据，如需支持实数，则需要针对类型进行处理
-
-    MoveInstruction * movInst = new MoveInstruction(module->getCurrentFunction(), left->val, right->val);
-
-    // 调试信息：输出移动指令
-    std::string infoStr = "生成移动指令: 从 ";
-    infoStr += right->val->getName();
-    infoStr += " 到 ";
-    infoStr += left->val->getName();
-    minic_log(LOG_INFO, "%s", infoStr.c_str());
-
     // 创建临时变量保存IR的值，以及线性IR指令
     node->blockInsts.addInst(right->blockInsts);
     node->blockInsts.addInst(left->blockInsts);
-    node->blockInsts.addInst(movInst);
 
-    // 这里假定赋值的类型是一致的
-    node->val = movInst;
+    // 处理不同的赋值情况
+    if (son1_node->node_type == ast_operator_type::AST_OP_ARRAY_ACCESS) {
+        // 数组元素赋值，通过指针赋值
+        // 左边是数组访问，得到的是元素地址
+        Value* dest = left->val;
+        Value* src = right->val;
+        
+        // 创建存储指令
+        MoveInstruction* storeInst = new MoveInstruction(module->getCurrentFunction(), dest, src, true);
+        node->blockInsts.addInst(storeInst);
+        node->val = storeInst;
+    } else {
+        // 普通变量赋值
+        MoveInstruction* movInst = new MoveInstruction(module->getCurrentFunction(), left->val, right->val);
+        node->blockInsts.addInst(movInst);
+        node->val = movInst;
+    }
 
     return true;
 }
@@ -883,6 +924,12 @@ bool IRGenerator::ir_leaf_node_var_id(ast_node * node)
         if (overrideVar != nullptr) {
             // 找到参数覆盖变量，优先使用它
             node->val = overrideVar;
+
+            // 检查是否是数组类型
+            if (overrideVar->getType()->getTypeID() == Type::ArrayTyID) {
+                node->type = overrideVar->getType();
+            }
+
             return true;
         }
     }
@@ -897,6 +944,11 @@ bool IRGenerator::ir_leaf_node_var_id(ast_node * node)
     }
 
     node->val = val;
+
+    // 检查是否是数组类型
+    if (val->getType()->getTypeID() == Type::ArrayTyID) {
+        node->type = val->getType();
+    }
 
     return true;
 }
@@ -998,12 +1050,40 @@ bool IRGenerator::ir_variable_declare(ast_node * node)
         if (formalParam != nullptr) {
             minic_log(LOG_INFO, "变量 %s 是形参，不创建新的局部变量", varName.c_str());
             node->val = existingVar;
+
+            // 处理数组类型的形参，在DragonIR中表示为指针
+            if (varType->getTypeID() == Type::ArrayTyID) {
+                // TODO: 这里应该处理数组类型的形参
+                // 1. 获取数组类型 ArrayType* arrayType = static_cast<ArrayType*>(varType);
+                // 2. 获取元素类型 Type* elementType = arrayType->getElementType();
+                // 3. 创建新的数组指针类型 ArrayType::get(elementType, 0)
+                // 4. 创建新的形参对象并替换原有形参
+            }
+
             return true;
         }
         minic_log(LOG_INFO, "找到现有变量 %s，类型为: %s", varName.c_str(), typeid(*existingVar).name());
     }
 
-    // TODO 这里可强化类型等检查
+    // 处理数组类型
+    Function * currentFunc = module->getCurrentFunction();
+    if (varType->getTypeID() == Type::ArrayTyID) {
+        // 创建数组变量
+        node->val = module->newVarValue(varType, varName);
+
+        // 如果是函数形参，处理为指针类型
+        if (!currentFunc) {
+            // 全局数组变量
+            minic_log(LOG_INFO, "声明全局数组变量: %s", varName.c_str());
+        } else {
+            // 局部数组变量
+            minic_log(LOG_INFO, "声明局部数组变量: %s", varName.c_str());
+        }
+
+        return true;
+    }
+
+    // 普通变量的处理
     node->val = module->newVarValue(varType, varName);
 
     return true;
@@ -1676,4 +1756,231 @@ bool IRGenerator::ir_continue(ast_node * node)
     node->blockInsts.addInst(gotoStartInst);
 
     return true;
+}
+
+/// @brief 数组定义AST节点翻译成线性中间IR
+/// @param node AST节点
+/// @return 翻译是否成功，true：成功，false：失败
+bool IRGenerator::ir_array_def(ast_node * node)
+{
+    // 数组定义的结构：左孩子是元素类型，右孩子是大小表达式
+    // 对于多维数组，使用嵌套的AST_OP_ARRAY_DEF表示
+    if (node->sons.size() != 2) {
+        // 数组定义节点必须有两个孩子
+        return false;
+    }
+
+    // 获取元素类型
+    ast_node * element_type_node = ir_visit_ast_node(node->sons[0]);
+    if (!element_type_node) {
+        return false;
+    }
+
+    // 获取数组大小
+    ast_node * array_size_node = ir_visit_ast_node(node->sons[1]);
+    if (!array_size_node) {
+        return false;
+    }
+
+    // 添加元素类型和数组大小节点的指令
+    node->blockInsts.addInst(element_type_node->blockInsts);
+    node->blockInsts.addInst(array_size_node->blockInsts);
+
+    // 数组大小必须是常量
+    uint32_t array_size = 0;
+    if (array_size_node->node_type == ast_operator_type::AST_OP_LEAF_LITERAL_UINT) {
+        array_size = array_size_node->integer_val;
+    } else {
+        // 目前只支持常量作为数组大小
+        minic_log(LOG_ERROR, "数组大小必须是常量整数");
+        return false;
+    }
+
+    // 获取元素类型
+    Type * element_type = element_type_node->type;
+
+    // 处理多维数组的情况
+    if (element_type_node->node_type == ast_operator_type::AST_OP_ARRAY_DEF) {
+        // 嵌套数组定义，这是多维数组
+        if (element_type->getTypeID() == Type::ArrayTyID) {
+            // 创建多维数组类型
+            node->type = ArrayType::get(element_type, array_size);
+        } else {
+            minic_log(LOG_ERROR, "无效的多维数组定义");
+            return false;
+        }
+    } else {
+        // 一维数组
+        node->type = ArrayType::get(element_type, array_size);
+    }
+
+    return true;
+}
+
+/// @brief 数组访问AST节点翻译成线性中间IR
+/// @param node AST节点
+/// @return 翻译是否成功，true：成功，false：失败
+bool IRGenerator::ir_array_access(ast_node * node)
+{
+    // 数组访问的结构：左孩子是数组名（可能是数组访问），右孩子是下标表达式
+    if (node->sons.size() != 2) {
+        // 数组访问节点必须有两个孩子
+        return false;
+    }
+
+    Function * function = module->getCurrentFunction();
+    if (!function) {
+        // 必须在函数内部访问数组
+        return false;
+    }
+
+    // 获取数组基址
+    ast_node * array_base_node = ir_visit_ast_node(node->sons[0]);
+    if (!array_base_node) {
+        return false;
+    }
+
+    // 获取索引表达式
+    ast_node * index_node = ir_visit_ast_node(node->sons[1]);
+    if (!index_node) {
+        return false;
+    }
+
+    // 将前面部分的IR指令添加到当前节点
+    node->blockInsts.addInst(array_base_node->blockInsts);
+    node->blockInsts.addInst(index_node->blockInsts);
+
+    // 收集索引信息
+    std::vector<Value *> indices;
+    std::vector<ast_node *> array_nodes;
+
+    // 收集所有的索引表达式
+    indices.push_back(index_node->val);
+    array_nodes.push_back(array_base_node);
+
+    // 处理多维数组访问（嵌套的数组访问）
+    ast_node * current = array_base_node;
+    while (current->node_type == ast_operator_type::AST_OP_ARRAY_ACCESS) {
+        indices.insert(indices.begin(), current->sons[1]->val); // 插入到前面，保持正确的顺序
+        array_nodes.insert(array_nodes.begin(), current->sons[0]);
+        current = current->sons[0];
+    }
+
+    // 获取数组基础变量
+    Value * array_base = current->val;
+    if (!array_base) {
+        return false;
+    }
+
+    // 获取数组的类型
+    Type * array_type = array_base->getType();
+
+    // 计算数组元素的地址
+    Value* element_addr = computeArrayElementAddress(array_base, indices, function);
+    if (!element_addr) {
+        return false;
+    }
+
+    // 如果是数组类型，获取元素类型
+    Type* element_type = nullptr;
+    if (array_type->getTypeID() == Type::ArrayTyID) {
+        ArrayType* arr_type = static_cast<ArrayType*>(array_type);
+        // 逐层解析多维数组的元素类型
+        element_type = arr_type->getElementType();
+        for (size_t i = 1; i < indices.size(); i++) {
+            if (element_type->getTypeID() == Type::ArrayTyID) {
+                element_type = static_cast<ArrayType*>(element_type)->getElementType();
+            } else {
+                break;
+            }
+        }
+    } else {
+        // 如果不是数组类型（例如指针），假设指向的是整数类型
+        element_type = IntegerType::getTypeInt();
+    }
+
+    // 设置节点的值和类型
+    node->val = element_addr;   // 元素地址，用于赋值操作
+    node->type = element_type;
+
+    return true;
+}
+
+/// @brief 多维数组索引地址计算
+/// @param arrayValue 数组变量
+/// @param indices 索引表达式列表
+/// @param function 当前函数
+/// @return 数组元素地址
+Value * IRGenerator::computeArrayElementAddress(Value * arrayValue, std::vector<Value *> & indices, Function * function)
+{
+    // 获取数组类型
+    Type * array_type = arrayValue->getType();
+
+    // 对于多维数组，我们需要逐层计算偏移量
+    Value * current_addr = arrayValue;
+
+    // 数组元素的基本大小（默认假设是int，即4字节）
+    int element_size = 4;
+
+    // 逐维度计算偏移
+    for (size_t i = 0; i < indices.size(); i++) {
+        // 当前维度的索引
+        Value * index = indices[i];
+
+        // 如果当前不是最后一维，我们需要计算当前维度的大小
+        if (i < indices.size() - 1 && array_type->getTypeID() == Type::ArrayTyID) {
+            ArrayType * arr_type = static_cast<ArrayType *>(array_type);
+
+            // 获取当前维度后面所有维度的总元素数
+            uint32_t size_product = 1;
+            Type * current_type = arr_type->getElementType();
+            for (size_t j = i + 1; j < indices.size(); j++) {
+                if (current_type->getTypeID() == Type::ArrayTyID) {
+                    ArrayType * next_arr_type = static_cast<ArrayType *>(current_type);
+                    size_product *= next_arr_type->getNumElements();
+                    current_type = next_arr_type->getElementType();
+                } else {
+                    break;
+                }
+            }
+
+            // 为维度大小创建常量
+            Value * dim_size = module->newConstInt(size_product * element_size);
+
+            // 计算当前维度的偏移量：索引 * 维度大小
+            BinaryInstruction * mul_inst = new BinaryInstruction(module->getCurrentFunction(), IRInstOperator::IRINST_OP_MUL_I, index, dim_size, index->getType());
+            function->getInterCode().addInst(mul_inst);
+
+            // 更新数组地址：当前地址 + 偏移量
+            BinaryInstruction * add_inst = new BinaryInstruction(module->getCurrentFunction(), IRInstOperator::IRINST_OP_ADD_I, current_addr, mul_inst, current_addr->getType());
+            function->getInterCode().addInst(add_inst);
+
+            current_addr = add_inst;
+
+            // 更新当前数组类型为下一维度的数组类型
+            array_type = arr_type->getElementType();
+        }
+        // 处理最后一维或者当前维度不是数组类型的情况
+        else {
+            // 为元素大小创建常量
+            Value * size_value = module->newConstInt(element_size);
+
+            // 计算最后一维的偏移量：索引 * 元素大小
+            BinaryInstruction * mul_inst = new BinaryInstruction(module->getCurrentFunction(), IRInstOperator::IRINST_OP_MUL_I, index, size_value, index->getType());
+            function->getInterCode().addInst(mul_inst);
+
+            // 更新数组地址：当前地址 + 偏移量
+            BinaryInstruction * add_inst = new BinaryInstruction(module->getCurrentFunction(), IRInstOperator::IRINST_OP_ADD_I, current_addr, mul_inst, current_addr->getType());
+            function->getInterCode().addInst(add_inst);
+
+            current_addr = add_inst;
+
+            // 如果当前类型是数组类型，更新为元素类型
+            if (array_type->getTypeID() == Type::ArrayTyID) {
+                array_type = static_cast<ArrayType *>(array_type)->getElementType();
+            }
+        }
+    }
+
+    return current_addr;
 }

@@ -20,6 +20,14 @@
 #include "VoidType.h"
 #include "PointerType.h"
 
+#include "Module.h"
+
+#include "ScopeStack.h"
+#include "Common.h"
+#include "VoidType.h"
+#include "PointerType.h"
+#include "Types/ArrayType.h"
+
 Module::Module(std::string _name) : name(_name)
 {
     // 创建作用域栈
@@ -38,22 +46,18 @@ Module::Module(std::string _name) : name(_name)
     // getch() - int函数，字符输入
     (void) newFunction("getch", IntegerType::getTypeInt(), {}, true);
 
-    // getarray(int[]) - int函数，数组输入，使用int*表示int[]
-    (void) newFunction(
-        "getarray",
-        IntegerType::getTypeInt(),
-        {new FormalParam{const_cast<Type *>(static_cast<const Type *>(PointerType::get(IntegerType::getTypeInt()))),
-                         ""}},
-        true);
+    // getarray(int[]) - int函数，数组输入，使用int[0]表示int[]指针
+    (void) newFunction("getarray",
+                       IntegerType::getTypeInt(),
+                       {new FormalParam{ArrayType::get(IntegerType::getTypeInt(), 0), "a"}},
+                       true);
 
     // putarray(int, int[]) - void函数，数组输出
-    (void) newFunction(
-        "putarray",
-        VoidType::getType(),
-        {new FormalParam{IntegerType::getTypeInt(), ""},
-         new FormalParam{const_cast<Type *>(static_cast<const Type *>(PointerType::get(IntegerType::getTypeInt()))),
-                         ""}},
-        true);
+    (void) newFunction("putarray",
+                       VoidType::getType(),
+                       {new FormalParam{IntegerType::getTypeInt(), "n"},
+                        new FormalParam{ArrayType::get(IntegerType::getTypeInt(), 0), "a"}},
+                       true);
 
     // putstr(char*) - void函数，字符串输出，使用int*表示char*
     (void) newFunction(

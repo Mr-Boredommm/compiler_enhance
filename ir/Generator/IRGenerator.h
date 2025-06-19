@@ -219,6 +219,30 @@ protected:
     /// @brief AST节点运算符与动作函数关联的映射表
     std::unordered_map<ast_operator_type, ast2ir_handler_t> ast2ir_handlers;
 
+    /// @brief 数组定义AST节点翻译成线性中间IR
+    /// @param node AST节点
+    /// @return 翻译是否成功，true：成功，false：失败
+    bool ir_array_def(ast_node * node);
+
+    /// @brief 数组访问AST节点翻译成线性中间IR
+    /// @param node AST节点
+    /// @return 翻译是否成功，true：成功，false：失败
+    bool ir_array_access(ast_node * node);
+
+    /// @brief 多维数组索引地址计算
+    /// @param arrayValue 数组变量
+    /// @param indices 索引表达式列表
+    /// @param function 当前函数
+    /// @return 数组元素地址
+    Value * computeArrayElementAddress(Value * arrayValue, std::vector<Value *> & indices, Function * function);
+
+    /// @brief 根据数组类型和索引计算实际偏移
+    /// @param arrayType 数组类型
+    /// @param indices 索引列表
+    /// @param function 当前函数
+    /// @return 计算得到的偏移值
+    Value * computeArrayOffset(Type * arrayType, std::vector<Value *> & indices, Function * function);
+
 private:
     /// @brief 抽象语法树的根
     ast_node * root;

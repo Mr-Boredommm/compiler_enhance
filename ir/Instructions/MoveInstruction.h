@@ -37,6 +37,19 @@ public:
     ///
     MoveInstruction(Function * _func, Value * result, Value * srcVal1);
 
+    ///
+    /// @brief 构造函数（带数组标志）
+    /// @param _func 所属的函数
+    /// @param result 结构操作数
+    /// @param srcVal1 源操作数
+    /// @param isArrayAccess 是否是数组元素访问
+    ///
+    MoveInstruction(Function * _func, Value * result, Value * srcVal1, bool isArrayAccess);
+
     /// @brief 转换成字符串
     void toString(std::string & str) override;
+
+private:
+    /// @brief 是否为数组元素访问（存储操作）
+    bool isArrayAccess;
 };
