@@ -23,8 +23,11 @@ funcReturnType: T_INT | T_VOID;
 // 形参列表
 formalParamList: formalParam (T_COMMA formalParam)*;
 
-// 形参定义
-formalParam: T_INT T_ID;
+// 形参定义，支持数组
+formalParam:
+	T_INT T_ID (
+		T_L_SQUARE T_R_SQUARE (T_L_SQUARE T_DIGIT T_R_SQUARE)*
+	)?;
 
 // 语句块看用作函数体，这里允许多个语句，并且不含任何语句
 block: T_L_BRACE blockItemList? T_R_BRACE;
@@ -41,8 +44,8 @@ varDecl: T_INT varDef (T_COMMA varDef)* T_SEMICOLON;
 // 基本类型（用于函数返回类型）
 basicType: T_INT | T_VOID;
 
-// 变量定义，支持可选的初始化
-varDef: T_ID (T_ASSIGN expr)?;
+// 变量定义，支持可选的初始化和数组声明
+varDef: T_ID (T_L_SQUARE T_DIGIT T_R_SQUARE)* (T_ASSIGN expr)?;
 
 // 语句支持多种形式，添加了if语句、while语句、break和continue语句
 statement:
@@ -97,8 +100,8 @@ primaryExp:
 // 实参列表
 realParamList: expr (T_COMMA expr)*;
 
-// 左值表达式
-lVal: T_ID;
+// 左值表达式，支持数组访问
+lVal: T_ID (T_L_SQUARE expr T_R_SQUARE)*;
 
 // 用正规式来进行词法规则的描述
 
@@ -107,6 +110,8 @@ T_R_PAREN: ')';
 T_SEMICOLON: ';';
 T_L_BRACE: '{';
 T_R_BRACE: '}';
+T_L_SQUARE: '[';
+T_R_SQUARE: ']';
 
 T_ASSIGN: '=';
 T_COMMA: ',';

@@ -146,6 +146,12 @@ enum class ast_operator_type : int {
     /// @brief CONTINUE语句
     AST_OP_CONTINUE,
 
+    /// @brief 数组访问，左孩子是数组名（可能是数组访问），右孩子是下标表达式
+    AST_OP_ARRAY_ACCESS,
+
+    /// @brief 数组定义，左孩子是元素类型，右孩子是大小表达式
+    AST_OP_ARRAY_DEF,
+
     /// @brief 最大标识符，表示非法运算符
     AST_OP_MAX,
 };
@@ -431,3 +437,19 @@ ast_node * create_logical_or_expr(ast_node * left_node, ast_node * right_node);
 /// @return 创建的节点
 ///
 ast_node * create_logical_not_expr(ast_node * operand_node);
+
+///
+/// @brief 创建数组访问节点
+/// @param array_node 数组变量节点
+/// @param index_node 下标表达式节点
+/// @return 创建的节点
+///
+ast_node * create_array_access(ast_node * array_node, ast_node * index_node);
+
+///
+/// @brief 创建数组定义节点
+/// @param element_type 元素类型节点
+/// @param size_node 数组大小表达式节点
+/// @return 创建的节点
+///
+ast_node * create_array_def(ast_node * element_type, ast_node * size_node);

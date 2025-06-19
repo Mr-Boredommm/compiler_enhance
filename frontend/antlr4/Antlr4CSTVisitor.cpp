@@ -435,14 +435,27 @@ std::any MiniCCSTVisitor::visitPrimaryExp(MiniCParser::PrimaryExpContext * ctx)
 
 std::any MiniCCSTVisitor::visitLVal(MiniCParser::LValContext * ctx)
 {
-    // 识别文法产生式：lVal: T_ID;
+    // 识别文法产生式：lVal: T_ID (T_L_SQUARE expr T_R_SQUARE)*;
+
     // 获取ID的名字
     auto varId = ctx->T_ID()->getText();
 
     // 获取行号
     int64_t lineNo = (int64_t) ctx->T_ID()->getSymbol()->getLine();
 
-    return ast_node::New(varId, lineNo);
+    // 创建基本的ID节点
+    ast_node * node = ast_node::New(varId, lineNo);
+
+    // 处理数组访问，如果有下标表达式
+    for (size_t i = 0; i < ctx->expr().size(); i++) {
+        // 为每一个下标表达式创建数组访问节点
+        auto indexNode = std::any_cast<ast_node *>(visitExpr(ctx->expr()[i]));
+
+        // 创建数组访问节点
+        node = create_array_access(node, indexNode);
+    }
+
+    return node;
 }
 
 std::any MiniCCSTVisitor::visitVarDecl(MiniCParser::VarDeclContext * ctx)
@@ -501,7 +514,7 @@ std::any MiniCCSTVisitor::visitVarDecl(MiniCParser::VarDeclContext * ctx)
 
 std::any MiniCCSTVisitor::visitVarDef(MiniCParser::VarDefContext * ctx)
 {
-    // varDef: T_ID (T_ASSIGN expr)?;
+    // varDef: T_ID (T_L_SQUARE T_DIGIT T_R_SQUARE)* (T_ASSIGN expr)?;
 
     auto varId = ctx->T_ID()->getText();
 
@@ -511,15 +524,33 @@ std::any MiniCCSTVisitor::visitVarDef(MiniCParser::VarDefContext * ctx)
     // 创建变量名节点
     ast_node * varNode = ast_node::New(varId, lineNo);
 
+    // 处理数组维度，如果有数组声明
+    if (!ctx->T_L_SQUARE().empty()) {
+        // 遍历所有维度
+        for (size_t i = 0; i < ctx->T_L_SQUARE().size(); i++) {
+            // 获取数组维度大小
+            auto sizeText = ctx->T_DIGIT(i)->getText();
+            digit_int_attr sizeAttr;
+            sizeAttr.val = std::stoul(sizeText);
+            sizeAttr.lineno = ctx->T_DIGIT(i)->getSymbol()->getLine();
+
+            // 创建大小节点
+            ast_node * sizeNode = ast_node::New(sizeAttr);
+
+            // 创建数组定义节点
+            varNode = create_array_def(varNode, sizeNode);
+        }
+    }
+
     // 检查是否有初始化表达式
-    if (ctx->T_ASSIGN() && ctx->expr()) {
+    if (ctx->T_ASSIGN()) {
         // 有初始化表达式，创建赋值节点
         auto initExpr = std::any_cast<ast_node *>(visitExpr(ctx->expr()));
 
-        // 创建赋值节点 (AST_OP_ASSIGN)，左侧是变量名，右侧是初始化表达式
+        // 创建赋值节点 (AST_OP_ASSIGN)，左侧是变量名（可能包含数组定义），右侧是初始化表达式
         return ast_node::New(ast_operator_type::AST_OP_ASSIGN, varNode, initExpr, nullptr);
     } else {
-        // 没有初始化，只返回变量名节点
+        // 没有初始化，只返回变量名节点（可能包含数组定义）
         return varNode;
     }
 }
@@ -795,7 +826,7 @@ std::any MiniCCSTVisitor::visitFormalParamList(MiniCParser::FormalParamListConte
 /// @param ctx CST上下文
 std::any MiniCCSTVisitor::visitFormalParam(MiniCParser::FormalParamContext * ctx)
 {
-    // 识别的文法产生式：formalParam : T_INT T_ID
+    // 识别的文法产生式：formalParam : T_INT T_ID (T_L_SQUARE T_R_SQUARE (T_L_SQUARE T_DIGIT T_R_SQUARE)*)?
 
     // 获取参数名
     char * paramName = strdup(ctx->T_ID()->getText().c_str());
@@ -805,6 +836,28 @@ std::any MiniCCSTVisitor::visitFormalParam(MiniCParser::FormalParamContext * ctx
 
     // 创建形参节点
     ast_node * formalParamNode = create_func_formal_param(lineNo, paramName);
+
+    // 处理数组形参
+    if (!ctx->T_L_SQUARE().empty()) {
+        // 第一维度是空的 []，表示这是一个指针
+        // 后续维度如果有，需要处理
+        size_t numDimensions = ctx->T_L_SQUARE().size();
+
+        // 如果有后续维度 ([][3] 这种形式)
+        for (size_t i = 1; i < numDimensions; i++) {
+            // 获取维度大小
+            auto sizeText = ctx->T_DIGIT(i - 1)->getText();
+            digit_int_attr sizeAttr;
+            sizeAttr.val = std::stoul(sizeText);
+            sizeAttr.lineno = ctx->T_DIGIT(i - 1)->getSymbol()->getLine();
+
+            // 创建大小节点
+            ast_node * sizeNode = ast_node::New(sizeAttr);
+
+            // 创建数组定义节点
+            formalParamNode = create_array_def(formalParamNode, sizeNode);
+        }
+    }
 
     // 释放参数名内存（create_func_formal_param内部会复制）
     free(paramName);

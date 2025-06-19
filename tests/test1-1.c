@@ -1,13 +1,5 @@
-int a;
-int func(int p)
-{
-    p = p - 1;
-    return p;
-}
+int a[10][5];
 int main()
 {
-    int b;
-    a = 10;
-    b = func(a);
-    return b;
+    return 0;
 }

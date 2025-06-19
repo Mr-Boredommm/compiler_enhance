@@ -664,3 +664,39 @@ ast_node * create_func_formal_param(uint32_t line_no, const char * param_name)
 
     return param_node;
 }
+
+///
+/// @brief 创建数组访问节点
+/// @param array_node 数组变量节点
+/// @param index_node 下标表达式节点
+/// @return 创建的节点
+///
+ast_node * create_array_access(ast_node * array_node, ast_node * index_node)
+{
+    // 创建数组访问节点，使用数组节点的行号
+    ast_node * node = new ast_node(ast_operator_type::AST_OP_ARRAY_ACCESS);
+
+    // 添加数组变量和下标表达式作为子节点
+    (void) node->insert_son_node(array_node);
+    (void) node->insert_son_node(index_node);
+
+    return node;
+}
+
+///
+/// @brief 创建数组定义节点
+/// @param element_type 元素类型节点
+/// @param size_node 数组大小表达式节点
+/// @return 创建的节点
+///
+ast_node * create_array_def(ast_node * element_type, ast_node * size_node)
+{
+    // 创建数组定义节点
+    ast_node * node = new ast_node(ast_operator_type::AST_OP_ARRAY_DEF);
+
+    // 添加元素类型和大小表达式作为子节点
+    (void) node->insert_son_node(element_type);
+    (void) node->insert_son_node(size_node);
+
+    return node;
+}

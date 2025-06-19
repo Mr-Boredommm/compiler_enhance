@@ -149,6 +149,12 @@ string getNodeName(ast_node * astnode)
         case ast_operator_type::AST_OP_FUNC_REAL_PARAMS:
             nodeName = "real-params";
             break;
+        case ast_operator_type::AST_OP_ARRAY_ACCESS:
+            nodeName = "array-access";
+            break;
+        case ast_operator_type::AST_OP_ARRAY_DEF:
+            nodeName = "array-def";
+            break;
 
         default:
             nodeName = "unknown";
