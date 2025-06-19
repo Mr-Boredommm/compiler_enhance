@@ -19,6 +19,8 @@
 
 #include "IRConstant.h"
 #include "Function.h"
+#include "Types/ArrayType.h"
+#include "Types/PointerType.h"
 
 /// @brief 指定函数名字、函数类型的构造函数
 /// @param _name 函数名称
@@ -104,12 +106,21 @@ void Function::toString(std::string & str)
     for (auto & var: this->varsVector) {
 
         // 局部变量和临时变量需要输出declare语句
-        str += "\tdeclare " + var->getType()->toString() + " " + var->getIRName();
+        std::string typeStr = var->getType()->toString();
+
+        // 如果是数组类型，特殊处理输出格式
+        if (var->getType()->getTypeID() == Type::ArrayTyID) {
+            ArrayType * arrayType = static_cast<ArrayType *>(var->getType());
+            str += "\tdeclare " + typeStr + " " + var->getIRName() + "[" + std::to_string(arrayType->getNumElements()) +
+                   "]";
+        } else {
+            str += "\tdeclare " + typeStr + " " + var->getIRName();
+        }
 
         std::string extraStr;
         std::string realName = var->getName();
         if (!realName.empty()) {
-            str += " ; " + std::to_string(var->getScopeLevel()) + ":" + realName;
+            str += " ; variable: " + realName;
         }
 
         str += "\n";
@@ -122,7 +133,29 @@ void Function::toString(std::string & str)
         if (inst->hasResultValue()) {
 
             // 局部变量和临时变量需要输出declare语句
-            str += "\tdeclare " + inst->getType()->toString() + " " + inst->getIRName() + "\n";
+            std::string typeStr = inst->getType()->toString();
+
+            // 如果是数组类型，特殊处理输出格式
+            if (inst->getType()->getTypeID() == Type::ArrayTyID) {
+                ArrayType * arrayType = static_cast<ArrayType *>(inst->getType());
+                str += "\tdeclare " + typeStr + " " + inst->getIRName() + "[" +
+                       std::to_string(arrayType->getNumElements()) + "]";
+            } else if (inst->getOp() == IRInstOperator::IRINST_OP_ADD_I &&
+                       (inst->getOperand(0)->getType()->getTypeID() == Type::ArrayTyID ||
+                        inst->getOperand(1)->getType()->getTypeID() == Type::ArrayTyID)) {
+                // 数组地址计算，结果是指针类型
+                // 确保只添加一个*，避免生成多重指针
+                if (inst->getType()->getTypeID() == Type::PointerTyID) {
+                    // 已经是指针类型，直接输出
+                    str += "\tdeclare " + typeStr + " " + inst->getIRName();
+                } else {
+                    // 需要添加一个指针*
+                    str += "\tdeclare " + typeStr + "* " + inst->getIRName();
+                }
+            } else {
+                str += "\tdeclare " + typeStr + " " + inst->getIRName();
+            }
+            str += "\n";
         }
     }
 

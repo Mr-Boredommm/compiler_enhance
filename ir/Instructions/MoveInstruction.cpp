@@ -19,6 +19,7 @@
 
 #include "MoveInstruction.h"
 
+
 ///
 /// @brief 构造函数
 /// @param _func 所属的函数
@@ -53,8 +54,16 @@ void MoveInstruction::toString(std::string & str)
     Value *dstVal = getOperand(0), *srcVal = getOperand(1);
 
     if (isArrayAccess) {
-        // 数组元素赋值，使用*表示取地址内容
-        str = "*" + dstVal->getIRName() + " = " + srcVal->getIRName();
+        // 智能判断是数组读取还是写入操作
+        if (dstVal->getType()->isPointerType()) {
+            // 如果目标是指针类型，这是数组写入操作
+            // 例如: a[i] = value，生成 *%ptr = value
+            str = "*" + dstVal->getIRName() + " = " + srcVal->getIRName();
+        } else {
+            // 如果目标不是指针类型，这是数组读取操作
+            // 例如: value = a[i]，生成 value = *%ptr
+            str = dstVal->getIRName() + " = *" + srcVal->getIRName();
+        }
     } else {
         // 普通变量赋值
         str = dstVal->getIRName() + " = " + srcVal->getIRName();

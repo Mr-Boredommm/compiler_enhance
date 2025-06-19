@@ -36,10 +36,10 @@ std::string ArrayType::toString() const
 {
     if (numElements == 0) {
         // 指针类型，用于函数形参
-        return elementType->toString() + " *";
+        return elementType->toString() + "*";
     } else {
         // 普通数组类型
-        return elementType->toString() + " [" + std::to_string(numElements) + "]";
+        return elementType->toString();
     }
 }
 

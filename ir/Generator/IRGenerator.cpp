@@ -40,6 +40,9 @@
 #include "RelationalOpGenerator.h"
 #include "Types/ArrayType.h"
 #include "Types/IntegerType.h"
+#include "Types/PointerType.h"
+#include "Types/ArrayType.h"
+#include "Types/IntegerType.h"
 
 /// @brief 生成IR标签名称的计数器
 static int label_counter = 0;
@@ -2436,7 +2439,7 @@ bool IRGenerator::ir_array_access(ast_node * node)
         LocalVariable * tempVar = function->newLocalVarValue(element_type, "temp_array_value", 1);
 
         // 创建一个加载指令，将数组元素的值加载到临时变量中
-        MoveInstruction * loadInst = new MoveInstruction(function, tempVar, element_addr, false);
+        MoveInstruction * loadInst = new MoveInstruction(function, tempVar, element_addr, true);
         node->blockInsts.addInst(loadInst);
 
         // 将临时变量作为节点的值
@@ -2518,11 +2521,21 @@ Value * IRGenerator::computeArrayElementAddress(Value * arrayValue, std::vector<
             minic_log(LOG_INFO, "创建乘法指令: 索引 * 维度大小");
 
             // 更新数组地址：当前地址 + 偏移量
+            // 创建指针类型作为结果类型
+            Type * elementType = nullptr;
+            if (array_type->getTypeID() == Type::ArrayTyID) {
+                ArrayType * arr_type = static_cast<ArrayType *>(array_type);
+                elementType = arr_type->getElementType();
+            } else {
+                elementType = IntegerType::getTypeInt(); // 默认为int类型
+            }
+            const PointerType * ptrType = PointerType::get(const_cast<Type *>(elementType));
+
             BinaryInstruction * add_inst = new BinaryInstruction(module->getCurrentFunction(),
                                                                  IRInstOperator::IRINST_OP_ADD_I,
                                                                  current_addr,
                                                                  mul_inst,
-                                                                 current_addr->getType());
+                                                                 const_cast<PointerType *>(ptrType));
             function->getInterCode().addInst(add_inst);
             minic_log(LOG_INFO, "创建加法指令: 当前地址 + 偏移量");
 
@@ -2551,11 +2564,21 @@ Value * IRGenerator::computeArrayElementAddress(Value * arrayValue, std::vector<
             minic_log(LOG_INFO, "创建乘法指令: 索引 * 元素大小");
 
             // 更新数组地址：当前地址 + 偏移量
+            // 创建指针类型作为结果类型
+            Type * elementType = nullptr;
+            if (array_type->getTypeID() == Type::ArrayTyID) {
+                ArrayType * arr_type = static_cast<ArrayType *>(array_type);
+                elementType = arr_type->getElementType();
+            } else {
+                elementType = IntegerType::getTypeInt(); // 默认为int类型
+            }
+            const PointerType * ptrType = PointerType::get(const_cast<Type *>(elementType));
+
             BinaryInstruction * add_inst = new BinaryInstruction(module->getCurrentFunction(),
                                                                  IRInstOperator::IRINST_OP_ADD_I,
                                                                  current_addr,
                                                                  mul_inst,
-                                                                 current_addr->getType());
+                                                                 const_cast<PointerType *>(ptrType));
             function->getInterCode().addInst(add_inst);
             minic_log(LOG_INFO, "创建加法指令: 当前地址 + 偏移量");
 
