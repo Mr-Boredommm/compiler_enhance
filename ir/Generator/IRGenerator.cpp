@@ -272,17 +272,15 @@ bool IRGenerator::ir_function_define(ast_node * node)
     // 功能要求6和7：为int类型函数初始化返回值变量，特别是main函数初始化为0
     if (retValue) {
         ConstInt * initValue;
-        if (name_node->name == "main") {
-            // 功能要求7：main函数初始化返回值为0，避免进程退出状态的随机值问题
-            initValue = module->newConstInt(0);
-        } else {
-            // 其他int类型函数也初始化为0
-            initValue = module->newConstInt(0);
-        }
+        // 为所有函数的返回值初始化为0，但只添加一次赋值指令
+        initValue = module->newConstInt(0);
 
         // 创建初始化指令，将返回值变量初始化
         MoveInstruction * initRetInst = new MoveInstruction(newFunc, retValue, initValue);
         node->blockInsts.addInst(initRetInst);
+
+        // 标记已经初始化，避免重复赋值
+        newFunc->setReturnValueInitialized(true);
     }
 
     // 函数内已经进入作用域，内部不再需要做变量的作用域管理
@@ -901,13 +899,11 @@ bool IRGenerator::ir_return(ast_node * node)
 
     // 返回值存在时则移动指令到node中
     if (right) {
-
         // 创建临时变量保存IR的值，以及线性IR指令
         node->blockInsts.addInst(right->blockInsts);
 
         // 返回值赋值到函数返回值变量上，然后跳转到函数的尾部
         node->blockInsts.addInst(new MoveInstruction(currentFunc, currentFunc->getReturnValue(), right->val));
-
         node->val = right->val;
     } else {
         // 没有返回值

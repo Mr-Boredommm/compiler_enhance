@@ -76,6 +76,20 @@ public:
     /// @param val 返回值变量，要求必须是局部变量，不能是临时变量
     void setReturnValue(LocalVariable * val);
 
+    /// @brief 标记返回值是否已初始化
+    /// @param initialized 是否已初始化
+    void setReturnValueInitialized(bool initialized)
+    {
+        returnValueInitialized = initialized;
+    }
+
+    /// @brief 检查返回值是否已初始化
+    /// @return 是否已初始化
+    bool isReturnValueInitialized() const
+    {
+        return returnValueInitialized;
+    }
+
     /// @brief 获取函数返回值变量
     /// @return 返回值变量
     LocalVariable * getReturnValue();
@@ -257,6 +271,11 @@ private:
     /// @brief 被保护寄存器字符串
     ///
     std::string protectedRegStr;
+
+    ///
+    /// @brief 标记函数返回值是否已初始化，避免重复赋值
+    ///
+    bool returnValueInitialized = false;
 
     ///
     /// @brief 累计的实参个数，用于ARG指令的统计

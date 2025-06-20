@@ -18,6 +18,8 @@
 
 #include "GlobalValue.h"
 #include "IRConstant.h"
+#include "Types/ArrayType.h"
+#include <vector>
 
 ///
 /// @brief 全局变量，寻址时通过符号名或变量名来寻址
@@ -89,7 +91,39 @@ public:
     ///
     void toDeclareString(std::string & str)
     {
-        str = "declare " + getType()->toString() + " " + getIRName() + " = 0";
+        // 修改为DragonIR风格
+        // 示例: declare i32 @a[10] 而不是 declare [10 x i32] @a = 0
+        Type * type = getType();
+        std::string typeName;
+
+        // 处理数组类型
+        if (type->getTypeID() == Type::ArrayTyID) {
+            ArrayType * arrayType = static_cast<ArrayType *>(type);
+            Type * elementType = arrayType->getElementType();
+
+            // 获取所有维度信息
+            std::vector<uint32_t> dimensions;
+            Type * currentType = type;
+            while (currentType && currentType->getTypeID() == Type::ArrayTyID) {
+                ArrayType * arrType = static_cast<ArrayType *>(currentType);
+                dimensions.push_back(arrType->getNumElements());
+                currentType = arrType->getElementType();
+            }
+
+            // 使用基础元素类型
+            typeName = elementType->toString();
+
+            // 构建声明字符串
+            str = "declare " + typeName + " " + getIRName();
+
+            // 添加维度信息
+            for (size_t i = 0; i < dimensions.size(); i++) {
+                str += "[" + std::to_string(dimensions[i]) + "]";
+            }
+        } else {
+            // 非数组类型
+            str = "declare " + type->toString() + " " + getIRName() + " = 0";
+        }
     }
 
 private:
