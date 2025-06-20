@@ -29,6 +29,11 @@ static int label_counter = 1; // 从1开始计数，与正确IR保持一致
 /// @return 唯一的标签名称
 static std::string generate_label()
 {
+    // 确保标签从1开始
+    if (label_counter < 1) {
+        label_counter = 1;
+    }
+    // 确保循环内标签也是唯一的
     std::stringstream ss;
     ss << "L" << label_counter++;
     return ss.str();

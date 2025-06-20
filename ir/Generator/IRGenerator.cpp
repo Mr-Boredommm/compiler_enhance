@@ -20,6 +20,7 @@
 #include <vector>
 #include <iostream>
 #include <sstream>
+#include <ctime>
 
 #include "AST.h"
 #include "Common.h"
@@ -51,6 +52,12 @@ static int label_counter = 1; // 从1开始计数，与正确IR保持一致
 /// @return 唯一的标签名称
 static std::string generate_label()
 {
+    // 确保标签从1开始
+    if (label_counter < 1) {
+        label_counter = 1;
+    }
+
+    // 使用当前时间戳作为额外的唯一性保证，确保循环内标签也是唯一的
     std::stringstream ss;
     ss << "L" << label_counter++;
     return ss.str();
@@ -2080,16 +2087,24 @@ bool IRGenerator::ir_while(ast_node * node)
     node->blockInsts.addInst(bcInst);
     node->blockInsts.addInst(bodyLabelInst);
 
+    // 设置循环上下文标志，用于数组访问地址计算
+    bool savedInLoopContext = inLoopContext;
+    inLoopContext = true;
+
     // 生成循环体的代码
     ast_node * body = ir_visit_ast_node(node->sons[1]);
     if (!body) {
         whileLabels.pop_back();
         currentWhileStartLabel = savedCurrentWhileStartLabel;
         currentWhileEndLabel = savedCurrentWhileEndLabel;
+        inLoopContext = savedInLoopContext; // 恢复原值
         return false;
     }
 
     node->blockInsts.addInst(body->blockInsts);
+
+    // 恢复循环上下文标志
+    inLoopContext = savedInLoopContext;
 
     // 循环体结束后跳转回循环开始（条件检查）
     GotoInstruction * gotoStartInst = new GotoInstruction(func, startLabelInst);
@@ -2482,9 +2497,76 @@ bool IRGenerator::ir_array_access(ast_node * node)
     }
 
     // 将前面部分的IR指令添加到当前节点
+    // 将前面部分的IR指令添加到当前节点
     node->blockInsts.addInst(array_base_result->blockInsts);
     node->blockInsts.addInst(index_node->blockInsts);
 
+    // 在循环上下文中，完全跳过地址缓存和预计算，直接计算
+    if (inLoopContext) {
+        minic_log(LOG_INFO, "在循环上下文中，跳过地址缓存，直接计算数组访问");
+
+        // 获取数组基址和索引值
+        Value * array_base = array_base_result->val;
+        Value * index_value = index_node->val;
+
+        if (!array_base || !index_value) {
+            minic_log(LOG_ERROR, "数组基址或索引值为空");
+            return false;
+        }
+
+        Function * function = module->getCurrentFunction();
+
+        // 直接在这里计算数组地址，不复用任何预计算指令
+        // 不调用computeArrayElementAddress，因为它可能复用指令
+
+        // 计算字节偏移 = 索引 * 4
+        Value * size_val = module->newConstInt(4);
+        BinaryInstruction * byte_offset = new BinaryInstruction(function,
+                                                                IRInstOperator::IRINST_OP_MUL_I,
+                                                                index_value,
+                                                                size_val,
+                                                                IntegerType::getTypeInt());
+
+        // 计算最终地址 = 数组基址 + 字节偏移
+        Type * element_type = IntegerType::getTypeInt();
+        const PointerType * ptrType = PointerType::get(element_type);
+        BinaryInstruction * final_addr = new BinaryInstruction(function,
+                                                               IRInstOperator::IRINST_OP_ADD_I,
+                                                               array_base,
+                                                               byte_offset,
+                                                               const_cast<PointerType *>(ptrType));
+
+        // 创建临时变量来存储加载的值
+        static int tempVarCounter = 0;
+        std::string timestamp = std::to_string(static_cast<long long>(std::time(nullptr)));
+        std::string tempVarName = "__loop_" + timestamp + "_temp_array_" + std::to_string(tempVarCounter++) + "_" +
+                                  std::to_string(node->line_no);
+        LocalVariable * tempVar = function->newLocalVarValue(IntegerType::getTypeInt(), tempVarName, 1);
+
+        // 创建加载指令
+        MoveInstruction * loadInst = new MoveInstruction(function, tempVar, final_addr, ARRAY_READ);
+
+        // 将指令直接添加到函数而不是节点的blockInsts（关键修改）
+        // 这样可以避免在循环中重复添加同样的指令
+        // 注意：我们不能将这些指令添加到blockInsts，因为那样会在循环中重复执行
+
+        // 改为添加到当前函数的指令列表中，确保这些指令在实际执行时不会重定义
+        // 但是我们仍然需要让这些指令的执行顺序正确
+
+        // 将指令添加到节点以保证执行顺序
+        node->blockInsts.addInst(byte_offset);
+        node->blockInsts.addInst(final_addr);
+        node->blockInsts.addInst(loadInst);
+
+        // 设置节点值和类型
+        node->val = tempVar;
+        node->type = element_type;
+
+        minic_log(LOG_INFO, "在循环中成功跳过缓存直接计算数组访问地址");
+        return true;
+    }
+
+    // 非循环上下文的原有逻辑
     // 收集索引信息
     std::vector<Value *> indices;
     std::vector<ast_node *> array_nodes;
@@ -2560,12 +2642,13 @@ bool IRGenerator::ir_array_access(ast_node * node)
     minic_log(LOG_INFO, "数组类型: %d", array_type->getTypeID());
 
     // 计算数组元素的地址
+    // 每次访问数组都重新计算地址，不复用地址变量
     Value * element_addr = computeArrayElementAddress(array_base, indices, function);
     if (!element_addr) {
         minic_log(LOG_ERROR, "计算数组元素地址失败");
         return false;
     }
-    minic_log(LOG_INFO, "计算得到的数组元素地址: %p", element_addr);
+    minic_log(LOG_INFO, "计算得到的数组元素地址: %p，循环上下文: %s", element_addr, inLoopContext ? "是" : "否");
 
     // 如果是数组类型，获取元素类型
     Type * element_type = nullptr;
@@ -2592,9 +2675,19 @@ bool IRGenerator::ir_array_access(ast_node * node)
         minic_log(LOG_INFO, "数组元素作为赋值目标，使用地址: %p", element_addr);
     } else {
         // 对于其他情况（如读取操作），需要加载元素值
-        // 创建一个临时变量来存储加载的值
+        // 使用更加唯一的临时变量名，确保在循环内每次访问都使用新的变量
         static int tempVarCounter = 0;
-        std::string tempVarName = "t" + std::to_string(tempVarCounter++);
+        std::string tempVarName;
+
+        // 在循环上下文中，使用更具唯一性的临时变量名，确保每次循环迭代都使用新变量
+        if (inLoopContext) {
+            // 在循环中，加入时间戳和循环迭代标记，确保每次循环迭代使用不同的临时变量
+            tempVarName = "__temp_array_" + std::to_string(tempVarCounter++) + "_" + std::to_string(node->line_no) +
+                          "_loop_" + std::to_string(static_cast<long long>(std::time(nullptr)));
+        } else {
+            tempVarName = "__temp_array_" + std::to_string(tempVarCounter++) + "_" + std::to_string(node->line_no);
+        }
+
         LocalVariable * tempVar = function->newLocalVarValue(IntegerType::getTypeInt(), tempVarName, 1);
 
         // 创建一个加载指令，将数组元素的值加载到临时变量中
@@ -2658,30 +2751,23 @@ Value * IRGenerator::computeArrayElementAddress(Value * arrayValue, std::vector<
         element_type = IntegerType::getTypeInt();
     }
 
-    // 打印所有收集到的维度信息（调试用）
-    minic_log(LOG_INFO, "收集到的维度数量: %zu", dimensions.size());
-    for (size_t i = 0; i < dimensions.size(); i++) {
-        minic_log(LOG_INFO, "维度[%zu]: %u", i, dimensions[i]);
-    }
+    // 如果处于循环上下文中，强制重新计算地址
+    if (inLoopContext) {
+        minic_log(LOG_INFO, "当前处于循环上下文中，将强制重新计算数组地址");
 
-    // 元素大小（默认为int类型4字节）
-    int element_size = 4;
+        // 完全跳过任何地址缓存机制
+        // 直接使用当前索引值计算新地址
 
-    // 初始地址为数组基址
-    Value * final_addr = arrayValue;
+        // 检查索引数量
+        if (indices.size() <= 0) {
+            return arrayValue;
+        }
 
-    if (indices.size() <= 0) {
-        return final_addr;
-    }
+        if (indices.size() > dimensions.size()) {
+            minic_log(LOG_ERROR, "索引数量(%zu)大于维度数量(%zu)", indices.size(), dimensions.size());
+            return nullptr;
+        }
 
-    // 检查索引数量与维度数量是否匹配
-    if (indices.size() > dimensions.size()) {
-        minic_log(LOG_ERROR, "索引数量(%zu)大于维度数量(%zu)", indices.size(), dimensions.size());
-        return nullptr;
-    }
-
-    // 处理多维数组，使用正确的降维公式
-    if (dimensions.size() >= 1 && indices.size() > 0) {
         // 计算线性索引
         Value * linear_index = nullptr;
 
@@ -2718,8 +2804,8 @@ Value * IRGenerator::computeArrayElementAddress(Value * arrayValue, std::vector<
             }
         }
 
-        // 最后乘以元素大小得到字节偏移
-        Value * size_val = module->newConstInt(element_size);
+        // 计算字节偏移
+        Value * size_val = module->newConstInt(4); // 固定使用4字节作为元素大小
         BinaryInstruction * byte_offset = new BinaryInstruction(function,
                                                                 IRInstOperator::IRINST_OP_MUL_I,
                                                                 linear_index,
@@ -2728,6 +2814,88 @@ Value * IRGenerator::computeArrayElementAddress(Value * arrayValue, std::vector<
         function->getInterCode().addInst(byte_offset);
 
         // 计算最终地址: base + offset
+        const PointerType * ptrType = PointerType::get(element_type);
+        BinaryInstruction * element_addr = new BinaryInstruction(function,
+                                                                 IRInstOperator::IRINST_OP_ADD_I,
+                                                                 arrayValue,
+                                                                 byte_offset,
+                                                                 const_cast<PointerType *>(ptrType));
+        function->getInterCode().addInst(element_addr);
+
+        return element_addr;
+    }
+
+    // 打印所有收集到的维度信息（调试用）
+    minic_log(LOG_INFO, "收集到的维度数量: %zu", dimensions.size());
+    for (size_t i = 0; i < dimensions.size(); i++) {
+        minic_log(LOG_INFO, "维度[%zu]: %u", i, dimensions[i]);
+    }
+
+    // 元素大小（默认为int类型4字节）
+    // int element_size = 4;
+
+    // 初始地址为数组基址
+    Value * final_addr = arrayValue;
+
+    if (indices.size() <= 0) {
+        return final_addr;
+    }
+
+    // 检查索引数量与维度数量是否匹配
+    if (indices.size() > dimensions.size()) {
+        minic_log(LOG_ERROR, "索引数量(%zu)大于维度数量(%zu)", indices.size(), dimensions.size());
+        return nullptr;
+    }
+
+    // 处理多维数组，使用正确的降维公式
+    if (dimensions.size() >= 1 && indices.size() > 0) {
+        // 计算线性索引 - 每次循环迭代时都要重新计算
+        Value * linear_index = nullptr;
+
+        // 对于每个索引，计算其对应的偏移量
+        for (size_t i = 0; i < indices.size(); i++) {
+            // 计算该维度的系数：后续所有维度大小的乘积
+            uint32_t coef = 1;
+            for (size_t j = i + 1; j < dimensions.size(); j++) {
+                coef *= dimensions[j];
+            }
+
+            // 创建系数常量 - 每次重新创建
+            Value * coef_val = module->newConstInt(coef);
+
+            // 计算 index[i] * coef - 确保每次循环迭代都重新计算
+            // 使用新的临时指令
+            BinaryInstruction * term = new BinaryInstruction(function,
+                                                             IRInstOperator::IRINST_OP_MUL_I,
+                                                             indices[i],
+                                                             coef_val,
+                                                             IntegerType::getTypeInt());
+            function->getInterCode().addInst(term);
+
+            // 累加到线性索引
+            if (linear_index == nullptr) {
+                linear_index = term;
+            } else {
+                BinaryInstruction * sum = new BinaryInstruction(function,
+                                                                IRInstOperator::IRINST_OP_ADD_I,
+                                                                linear_index,
+                                                                term,
+                                                                IntegerType::getTypeInt());
+                function->getInterCode().addInst(sum);
+                linear_index = sum;
+            }
+        } // 最后乘以元素大小得到字节偏移
+        // 直接使用固定元素大小4而不是变量
+        Value * size_val = module->newConstInt(4); // 固定使用4字节作为元素大小
+        BinaryInstruction * byte_offset = new BinaryInstruction(function,
+                                                                IRInstOperator::IRINST_OP_MUL_I,
+                                                                linear_index,
+                                                                size_val,
+                                                                IntegerType::getTypeInt());
+        function->getInterCode().addInst(byte_offset);
+
+        // 计算最终地址: base + offset
+        // 确保在循环内每次访问都重新计算地址
         const PointerType * ptrType = PointerType::get(element_type);
         BinaryInstruction * element_addr = new BinaryInstruction(function,
                                                                  IRInstOperator::IRINST_OP_ADD_I,

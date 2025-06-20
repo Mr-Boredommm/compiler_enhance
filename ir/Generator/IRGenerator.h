@@ -267,4 +267,7 @@ private:
 
     /// @brief while循环嵌套层级的标签指令
     std::vector<std::pair<LabelInstruction *, LabelInstruction *>> whileLabelInsts;
+
+    /// @brief 是否处于循环上下文中，用于数组访问地址计算
+    bool inLoopContext = false;
 };
