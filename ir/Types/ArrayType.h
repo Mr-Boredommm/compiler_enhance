@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Type.h"
+#include <vector>
 
 class ArrayType : public Type {
 public:
@@ -16,6 +17,10 @@ public:
     /// @brief 获取数组元素个数
     /// @return 数组元素个数
     uint32_t getNumElements() const;
+
+    /// @brief 获取数组的所有维度大小
+    /// @return 包含所有维度大小的向量
+    std::vector<uint32_t> getAllDimensions() const;
 
     /// @brief 创建一个数组类型
     /// @param elementType 数组元素类型

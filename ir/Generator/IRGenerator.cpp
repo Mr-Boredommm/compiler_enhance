@@ -45,7 +45,7 @@
 #include "Types/IntegerType.h"
 
 /// @brief 生成IR标签名称的计数器
-static int label_counter = 0;
+static int label_counter = 1; // 从1开始计数，与正确IR保持一致
 
 /// @brief 生成唯一的标签名称
 /// @return 唯一的标签名称
@@ -1290,6 +1290,37 @@ bool IRGenerator::ir_variable_declare(ast_node * node)
         if (!varType) {
             minic_log(LOG_ERROR, "无法获取数组类型，使用默认int[4]类型");
             varType = ArrayType::get(IntegerType::getTypeInt(), 4);
+        } else {
+            // 确保是数组类型且元素类型为int
+            if (varType->getTypeID() == Type::ArrayTyID) {
+                // 检查数组类型的元素类型，递归确保所有维度的元素类型最终都是int
+                Type * currentType = varType;
+                while (currentType && currentType->getTypeID() == Type::ArrayTyID) {
+                    ArrayType * arrType = static_cast<ArrayType *>(currentType);
+                    currentType = arrType->getElementType();
+                }
+
+                // 如果最终元素类型不是int，则需要重建整个数组类型结构
+                if (currentType->getTypeID() != Type::IntegerTyID) {
+                    // 收集所有维度信息
+                    std::vector<uint32_t> dims;
+                    currentType = varType;
+                    while (currentType && currentType->getTypeID() == Type::ArrayTyID) {
+                        ArrayType * arrType = static_cast<ArrayType *>(currentType);
+                        dims.push_back(arrType->getNumElements());
+                        currentType = arrType->getElementType();
+                    }
+
+                    // 从内到外重建数组类型
+                    Type * newType = IntegerType::getTypeInt();
+                    for (int i = dims.size() - 1; i >= 0; i--) {
+                        newType = ArrayType::get(newType, dims[i]);
+                    }
+
+                    varType = newType;
+                    minic_log(LOG_INFO, "修正数组元素类型为int，维度数量: %zu", dims.size());
+                }
+            }
         }
 
         minic_log(LOG_INFO, "从数组定义获取类型，类型ID: %d", varType->getTypeID());
@@ -2279,6 +2310,9 @@ bool IRGenerator::ir_array_def(ast_node * node)
     if (!element_type) {
         minic_log(LOG_ERROR, "元素类型为空，设置为int");
         element_type = IntegerType::getTypeInt();
+    } else if (element_type->getTypeID() != Type::IntegerTyID && element_type->getTypeID() != Type::ArrayTyID) {
+        // 确保数组元素类型为i32或数组类型，而不是void或其他类型
+        element_type = IntegerType::getTypeInt();
     }
     minic_log(LOG_INFO, "最终元素类型ID: %d", element_type->getTypeID());
 
@@ -2559,7 +2593,9 @@ bool IRGenerator::ir_array_access(ast_node * node)
     } else {
         // 对于其他情况（如读取操作），需要加载元素值
         // 创建一个临时变量来存储加载的值
-        LocalVariable * tempVar = function->newLocalVarValue(element_type, "temp_array_value", 1);
+        static int tempVarCounter = 0;
+        std::string tempVarName = "t" + std::to_string(tempVarCounter++);
+        LocalVariable * tempVar = function->newLocalVarValue(IntegerType::getTypeInt(), tempVarName, 1);
 
         // 创建一个加载指令，将数组元素的值加载到临时变量中
         // 使用ARRAY_READ类型，确保生成正确的"value = *addr"格式
@@ -2594,16 +2630,21 @@ Value * IRGenerator::computeArrayElementAddress(Value * arrayValue, std::vector<
     // 对于多维数组，我们需要收集所有维度大小
     std::vector<uint32_t> dimensions;
     Type * current_type = array_type;
+    Type * element_type = nullptr; // 记录最终元素类型
 
-    // 收集所有维度信息 - 先按原始顺序收集
-    std::vector<uint32_t> temp_dimensions;
+    // 收集所有维度信息
     while (current_type && current_type->getTypeID() == Type::ArrayTyID) {
         ArrayType * arr_type = static_cast<ArrayType *>(current_type);
         uint32_t numElements = arr_type->getNumElements();
 
         minic_log(LOG_INFO, "收集到维度: %u", numElements);
-        temp_dimensions.push_back(numElements);
+        dimensions.push_back(numElements);
         current_type = arr_type->getElementType();
+
+        // 记录最终的元素类型
+        if (current_type && current_type->getTypeID() != Type::ArrayTyID) {
+            element_type = current_type;
+        }
 
         // 防止无限循环
         if (!current_type) {
@@ -2612,9 +2653,9 @@ Value * IRGenerator::computeArrayElementAddress(Value * arrayValue, std::vector<
         }
     }
 
-    // 反转维度顺序以匹配数组声明顺序 (例如 int a[4][2][1] 应该是 [4,2,1])
-    for (int i = temp_dimensions.size() - 1; i >= 0; i--) {
-        dimensions.push_back(temp_dimensions[i]);
+    // 如果元素类型仍然为空，使用整数类型
+    if (!element_type) {
+        element_type = IntegerType::getTypeInt();
     }
 
     // 打印所有收集到的维度信息（调试用）
@@ -2634,148 +2675,64 @@ Value * IRGenerator::computeArrayElementAddress(Value * arrayValue, std::vector<
     }
 
     // 检查索引数量与维度数量是否匹配
-    if (indices.size() != dimensions.size()) {
-        minic_log(LOG_INFO, "索引数量(%zu)与维度数量(%zu)不匹配", indices.size(), dimensions.size());
-
-        // 如果索引数量少于维度数量，我们可以处理子数组（如获取二维数组中的一行）
-        // 这种情况下不需要返回错误，我们会计算子数组的地址
+    if (indices.size() > dimensions.size()) {
+        minic_log(LOG_ERROR, "索引数量(%zu)大于维度数量(%zu)", indices.size(), dimensions.size());
+        return nullptr;
     }
 
-    // 三维及以上数组的处理方式需要多步计算
-    if (dimensions.size() >= 3 && indices.size() > 0) {
-        // 三维数组公式: (i * (dim1 * dim2) + j * dim2 + k) * elem_size
-        minic_log(LOG_INFO,
-                  "处理%zu维数组，维度: [%u][%u][%u]",
-                  dimensions.size(),
-                  dimensions.size() >= 1 ? dimensions[0] : 0,
-                  dimensions.size() >= 2 ? dimensions[1] : 0,
-                  dimensions.size() >= 3 ? dimensions[2] : 0);
+    // 处理多维数组，使用正确的降维公式
+    if (dimensions.size() >= 1 && indices.size() > 0) {
+        // 计算线性索引
+        Value * linear_index = nullptr;
 
-        // 计算每个维度的乘积系数
-        std::vector<uint32_t> coefficients(dimensions.size(), 1);
-
-        // 计算从后往前的累积乘积
-        // 例如对于[4][2][3]，系数为[6,3,1]
-        for (int i = dimensions.size() - 2; i >= 0; i--) {
-            coefficients[i] = coefficients[i + 1] * dimensions[i + 1];
-        }
-
-        // 打印系数（调试用）
-        for (size_t i = 0; i < coefficients.size(); i++) {
-            minic_log(LOG_INFO, "维度[%zu]的系数: %u", i, coefficients[i]);
-        }
-
-        // 计算线性索引：i * coeff[0] + j * coeff[1] + k * coeff[2] + ...
-        Value * linearIndex = nullptr;
-
+        // 对于每个索引，计算其对应的偏移量
         for (size_t i = 0; i < indices.size(); i++) {
-            // 计算 index[i] * coefficient[i]
-            Value * coeffVal = module->newConstInt(coefficients[i]);
-            BinaryInstruction * termOffset = new BinaryInstruction(function,
-                                                                   IRInstOperator::IRINST_OP_MUL_I,
-                                                                   indices[i],
-                                                                   coeffVal,
-                                                                   IntegerType::getTypeInt());
-            function->getInterCode().addInst(termOffset);
+            // 计算该维度的系数：后续所有维度大小的乘积
+            uint32_t coef = 1;
+            for (size_t j = i + 1; j < dimensions.size(); j++) {
+                coef *= dimensions[j];
+            }
 
-            if (linearIndex == nullptr) {
-                linearIndex = termOffset;
+            // 创建系数常量
+            Value * coef_val = module->newConstInt(coef);
+
+            // 计算 index[i] * coef
+            BinaryInstruction * term = new BinaryInstruction(function,
+                                                             IRInstOperator::IRINST_OP_MUL_I,
+                                                             indices[i],
+                                                             coef_val,
+                                                             IntegerType::getTypeInt());
+            function->getInterCode().addInst(term);
+
+            // 累加到线性索引
+            if (linear_index == nullptr) {
+                linear_index = term;
             } else {
-                // 累加到线性索引
-                BinaryInstruction * addTerm = new BinaryInstruction(function,
-                                                                    IRInstOperator::IRINST_OP_ADD_I,
-                                                                    linearIndex,
-                                                                    termOffset,
-                                                                    IntegerType::getTypeInt());
-                function->getInterCode().addInst(addTerm);
-                linearIndex = addTerm;
+                BinaryInstruction * sum = new BinaryInstruction(function,
+                                                                IRInstOperator::IRINST_OP_ADD_I,
+                                                                linear_index,
+                                                                term,
+                                                                IntegerType::getTypeInt());
+                function->getInterCode().addInst(sum);
+                linear_index = sum;
             }
         }
 
-        // 最后乘以元素大小
+        // 最后乘以元素大小得到字节偏移
         Value * size_val = module->newConstInt(element_size);
         BinaryInstruction * byte_offset = new BinaryInstruction(function,
                                                                 IRInstOperator::IRINST_OP_MUL_I,
-                                                                linearIndex,
+                                                                linear_index,
                                                                 size_val,
                                                                 IntegerType::getTypeInt());
-        function->getInterCode().addInst(byte_offset);
-
-        // 计算最终地址
-        const PointerType * ptrType = PointerType::get(current_type);
-        BinaryInstruction * element_addr = new BinaryInstruction(function,
-                                                                 IRInstOperator::IRINST_OP_ADD_I,
-                                                                 arrayValue,
-                                                                 byte_offset,
-                                                                 const_cast<PointerType *>(ptrType));
-        function->getInterCode().addInst(element_addr);
-
-        return element_addr;
-    }
-
-    // 处理二维数组的情况 (最常见的情况)
-    if (dimensions.size() == 2 && indices.size() == 2) {
-        // 二维数组公式: (i * cols + j) * elem_size
-        minic_log(LOG_INFO, "处理二维数组，维度: [%u][%u]", dimensions[0], dimensions[1]);
-
-        // 计算 i * cols
-        Value * cols = module->newConstInt(dimensions[1]);
-        BinaryInstruction * row_offset = new BinaryInstruction(function,
-                                                               IRInstOperator::IRINST_OP_MUL_I,
-                                                               indices[0],
-                                                               cols,
-                                                               IntegerType::getTypeInt());
-        function->getInterCode().addInst(row_offset);
-        minic_log(LOG_INFO, "计算 i * cols, i=%p, cols=%u", indices[0], dimensions[1]);
-
-        // 计算 (i * cols + j)
-        BinaryInstruction * linear_offset = new BinaryInstruction(function,
-                                                                  IRInstOperator::IRINST_OP_ADD_I,
-                                                                  row_offset,
-                                                                  indices[1],
-                                                                  IntegerType::getTypeInt());
-        function->getInterCode().addInst(linear_offset);
-        minic_log(LOG_INFO, "计算 (i * cols + j), j=%p", indices[1]);
-
-        // 计算 (i * cols + j) * elem_size
-        Value * size_val = module->newConstInt(element_size);
-        BinaryInstruction * byte_offset = new BinaryInstruction(function,
-                                                                IRInstOperator::IRINST_OP_MUL_I,
-                                                                linear_offset,
-                                                                size_val,
-                                                                IntegerType::getTypeInt());
-        function->getInterCode().addInst(byte_offset);
-        minic_log(LOG_INFO, "计算 (i * cols + j) * elem_size, elem_size=%d", element_size);
         function->getInterCode().addInst(byte_offset);
 
         // 计算最终地址: base + offset
-        const PointerType * ptrType = PointerType::get(current_type);
+        const PointerType * ptrType = PointerType::get(element_type);
         BinaryInstruction * element_addr = new BinaryInstruction(function,
                                                                  IRInstOperator::IRINST_OP_ADD_I,
                                                                  arrayValue,
                                                                  byte_offset,
-                                                                 const_cast<PointerType *>(ptrType));
-        function->getInterCode().addInst(element_addr);
-
-        return element_addr;
-    }
-
-    // 处理单维数组或只有一个索引的情况
-    if (indices.size() == 1 || dimensions.size() == 1) {
-        // 简单计算: index * elem_size
-        Value * size_val = module->newConstInt(element_size);
-        BinaryInstruction * offset = new BinaryInstruction(function,
-                                                           IRInstOperator::IRINST_OP_MUL_I,
-                                                           indices[0],
-                                                           size_val,
-                                                           IntegerType::getTypeInt());
-        function->getInterCode().addInst(offset);
-
-        const PointerType * ptrType = PointerType::get(current_type);
-        BinaryInstruction * element_addr = new BinaryInstruction(function,
-                                                                 IRInstOperator::IRINST_OP_ADD_I,
-                                                                 arrayValue,
-                                                                 offset,
                                                                  const_cast<PointerType *>(ptrType));
         function->getInterCode().addInst(element_addr);
 

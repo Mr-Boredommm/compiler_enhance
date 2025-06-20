@@ -39,7 +39,20 @@ std::string ArrayType::toString() const
         return elementType->toString() + "*";
     } else {
         // 普通数组类型
-        return elementType->toString();
+        std::string result = "[" + std::to_string(numElements) + " x ";
+
+        // 递归获取元素类型
+        Type * currElemType = elementType;
+        if (currElemType->getTypeID() == Type::ArrayTyID) {
+            // 如果元素类型也是数组，则递归获取其字符串表示
+            result += currElemType->toString();
+        } else {
+            // 基本类型
+            result += currElemType->toString();
+        }
+
+        result += "]";
+        return result;
     }
 }
 
@@ -54,4 +67,24 @@ int32_t ArrayType::getSize() const
         // 数组大小 = 元素大小 * 元素个数
         return elementType->getSize() * numElements;
     }
+}
+
+/// @brief 获取数组的所有维度大小
+/// @return 包含所有维度大小的向量
+std::vector<uint32_t> ArrayType::getAllDimensions() const
+{
+    std::vector<uint32_t> dimensions;
+
+    // 添加当前维度
+    dimensions.push_back(numElements);
+
+    // 递归添加子维度
+    Type * currType = elementType;
+    while (currType && currType->getTypeID() == Type::ArrayTyID) {
+        ArrayType * arrayType = static_cast<ArrayType *>(currType);
+        dimensions.push_back(arrayType->getNumElements());
+        currType = arrayType->getElementType();
+    }
+
+    return dimensions;
 }
