@@ -19,7 +19,6 @@
 
 #include "MoveInstruction.h"
 
-
 ///
 /// @brief 构造函数
 /// @param _func 所属的函数
@@ -27,21 +26,36 @@
 /// @param srcVal1 源操作数
 ///
 MoveInstruction::MoveInstruction(Function * _func, Value * _result, Value * _srcVal1)
-    : Instruction(_func, IRInstOperator::IRINST_OP_ASSIGN, VoidType::getType()), isArrayAccess(false)
+    : Instruction(_func, IRInstOperator::IRINST_OP_ASSIGN, VoidType::getType()), arrayAccessType(NOT_ARRAY_ACCESS)
 {
     addOperand(_result);
     addOperand(_srcVal1);
 }
 
 ///
-/// @brief 构造函数（带数组标志）
+/// @brief 构造函数（带数组访问类型）
 /// @param _func 所属的函数
 /// @param result 结构操作数
 /// @param srcVal1 源操作数
-/// @param _isArrayAccess 是否是数组元素访问
+/// @param accessType 数组访问类型
 ///
-MoveInstruction::MoveInstruction(Function * _func, Value * _result, Value * _srcVal1, bool _isArrayAccess)
-    : Instruction(_func, IRInstOperator::IRINST_OP_ASSIGN, VoidType::getType()), isArrayAccess(_isArrayAccess)
+MoveInstruction::MoveInstruction(Function * _func, Value * _result, Value * _srcVal1, ArrayAccessType accessType)
+    : Instruction(_func, IRInstOperator::IRINST_OP_ASSIGN, VoidType::getType()), arrayAccessType(accessType)
+{
+    addOperand(_result);
+    addOperand(_srcVal1);
+}
+
+///
+/// @brief 构造函数（兼容旧接口）
+/// @param _func 所属的函数
+/// @param result 结构操作数
+/// @param srcVal1 源操作数
+/// @param isArrayAccess 是否是数组元素访问
+///
+MoveInstruction::MoveInstruction(Function * _func, Value * _result, Value * _srcVal1, bool isArrayAccess)
+    : Instruction(_func, IRInstOperator::IRINST_OP_ASSIGN, VoidType::getType()),
+      arrayAccessType(isArrayAccess ? ARRAY_WRITE : NOT_ARRAY_ACCESS)
 {
     addOperand(_result);
     addOperand(_srcVal1);
@@ -53,19 +67,18 @@ void MoveInstruction::toString(std::string & str)
 {
     Value *dstVal = getOperand(0), *srcVal = getOperand(1);
 
-    if (isArrayAccess) {
-        // 智能判断是数组读取还是写入操作
-        if (dstVal->getType()->isPointerType()) {
-            // 如果目标是指针类型，这是数组写入操作
-            // 例如: a[i] = value，生成 *%ptr = value
+    switch (arrayAccessType) {
+        case ARRAY_WRITE:
+            // 数组元素写入: *addr = value
             str = "*" + dstVal->getIRName() + " = " + srcVal->getIRName();
-        } else {
-            // 如果目标不是指针类型，这是数组读取操作
-            // 例如: value = a[i]，生成 value = *%ptr
+            break;
+        case ARRAY_READ:
+            // 数组元素读取: value = *addr
             str = dstVal->getIRName() + " = *" + srcVal->getIRName();
-        }
-    } else {
-        // 普通变量赋值
-        str = dstVal->getIRName() + " = " + srcVal->getIRName();
+            break;
+        default:
+            // 普通变量赋值
+            str = dstVal->getIRName() + " = " + srcVal->getIRName();
+            break;
     }
 }

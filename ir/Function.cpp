@@ -108,11 +108,32 @@ void Function::toString(std::string & str)
         // 局部变量和临时变量需要输出declare语句
         std::string typeStr = var->getType()->toString();
 
-        // 如果是数组类型，特殊处理输出格式
+        // 如果是数组类型，特殊处理输出格式，处理多维数组
         if (var->getType()->getTypeID() == Type::ArrayTyID) {
-            ArrayType * arrayType = static_cast<ArrayType *>(var->getType());
-            str += "\tdeclare " + typeStr + " " + var->getIRName() + "[" + std::to_string(arrayType->getNumElements()) +
-                   "]";
+            // 获取数组类型字符串（基础类型）
+            Type * baseType = var->getType();
+            std::string baseTypeStr;
+
+            // 递归获取所有维度信息
+            std::vector<uint32_t> dimensions;
+            Type * currentType = baseType;
+
+            while (currentType->getTypeID() == Type::ArrayTyID) {
+                ArrayType * arrType = static_cast<ArrayType *>(currentType);
+                dimensions.push_back(arrType->getNumElements());
+                currentType = arrType->getElementType();
+            }
+
+            // 获取基础类型
+            baseTypeStr = currentType->toString();
+
+            // 输出格式：declare i32 %l1[4][2]
+            str += "\tdeclare " + baseTypeStr + " " + var->getIRName();
+
+            // 添加所有维度
+            for (auto dim: dimensions) {
+                str += "[" + std::to_string(dim) + "]";
+            }
         } else {
             str += "\tdeclare " + typeStr + " " + var->getIRName();
         }
@@ -135,11 +156,32 @@ void Function::toString(std::string & str)
             // 局部变量和临时变量需要输出declare语句
             std::string typeStr = inst->getType()->toString();
 
-            // 如果是数组类型，特殊处理输出格式
+            // 如果是数组类型，特殊处理输出格式，处理多维数组
             if (inst->getType()->getTypeID() == Type::ArrayTyID) {
-                ArrayType * arrayType = static_cast<ArrayType *>(inst->getType());
-                str += "\tdeclare " + typeStr + " " + inst->getIRName() + "[" +
-                       std::to_string(arrayType->getNumElements()) + "]";
+                // 获取数组类型字符串（基础类型）
+                Type * baseType = inst->getType();
+                std::string baseTypeStr;
+
+                // 递归获取所有维度信息
+                std::vector<uint32_t> dimensions;
+                Type * currentType = baseType;
+
+                while (currentType->getTypeID() == Type::ArrayTyID) {
+                    ArrayType * arrType = static_cast<ArrayType *>(currentType);
+                    dimensions.push_back(arrType->getNumElements());
+                    currentType = arrType->getElementType();
+                }
+
+                // 获取基础类型
+                baseTypeStr = currentType->toString();
+
+                // 输出格式：declare i32 %t1[4][2]
+                str += "\tdeclare " + baseTypeStr + " " + inst->getIRName();
+
+                // 添加所有维度
+                for (auto dim: dimensions) {
+                    str += "[" + std::to_string(dim) + "]";
+                }
             } else if (inst->getOp() == IRInstOperator::IRINST_OP_ADD_I &&
                        (inst->getOperand(0)->getType()->getTypeID() == Type::ArrayTyID ||
                         inst->getOperand(1)->getType()->getTypeID() == Type::ArrayTyID)) {

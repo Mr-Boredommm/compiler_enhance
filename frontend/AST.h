@@ -205,6 +205,11 @@ public:
     ///
     bool needScope = true;
 
+    ///
+    /// @brief 标记节点是否处于数组定义阶段，用于避免在数组定义时查找未创建的变量
+    ///
+    bool isInArrayDefPhase = false;
+
     /// @brief 创建指定节点类型的节点
     /// @param _node_type 节点类型
     ast_node(ast_operator_type _node_type, Type * _type = VoidType::getType(), int64_t _line_no = -1);
