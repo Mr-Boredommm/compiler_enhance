@@ -23,7 +23,7 @@
 #include "RelationalOpGenerator.h"
 
 /// @brief 生成IR标签名称的计数器
-static int label_counter = 0;
+static int label_counter = 1; // 从1开始计数，与正确IR保持一致
 
 /// @brief 生成唯一的标签名称
 /// @return 唯一的标签名称

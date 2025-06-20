@@ -270,7 +270,7 @@ bool IRGenerator::ir_function_define(ast_node * node)
     newFunc->setReturnValue(retValue);
 
     // 功能要求6和7：为int类型函数初始化返回值变量，特别是main函数初始化为0
-    if (retValue) {
+    if (retValue && !newFunc->isReturnValueInitialized()) {
         ConstInt * initValue;
         // 为所有函数的返回值初始化为0，但只添加一次赋值指令
         initValue = module->newConstInt(0);
@@ -903,7 +903,11 @@ bool IRGenerator::ir_return(ast_node * node)
         node->blockInsts.addInst(right->blockInsts);
 
         // 返回值赋值到函数返回值变量上，然后跳转到函数的尾部
-        node->blockInsts.addInst(new MoveInstruction(currentFunc, currentFunc->getReturnValue(), right->val));
+        // 如果不是简单的0值返回（已在函数开始初始化），才添加赋值指令
+        ConstInt * constInt = dynamic_cast<ConstInt *>(right->val);
+        if (!(constInt && constInt->getVal() == 0 && currentFunc->isReturnValueInitialized())) {
+            node->blockInsts.addInst(new MoveInstruction(currentFunc, currentFunc->getReturnValue(), right->val));
+        }
         node->val = right->val;
     } else {
         // 没有返回值

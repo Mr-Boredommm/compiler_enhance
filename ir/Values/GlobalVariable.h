@@ -91,38 +91,36 @@ public:
     ///
     void toDeclareString(std::string & str)
     {
-        // 修改为DragonIR风格
-        // 示例: declare i32 @a[10] 而不是 declare [10 x i32] @a = 0
         Type * type = getType();
-        std::string typeName;
 
-        // 处理数组类型
         if (type->getTypeID() == Type::ArrayTyID) {
-            ArrayType * arrayType = static_cast<ArrayType *>(type);
-            Type * elementType = arrayType->getElementType();
-
-            // 获取所有维度信息
+            // 数组类型 - 使用DragonIR风格
+            // 找到基本元素类型和所有维度
+            Type * baseType = type;
             std::vector<uint32_t> dimensions;
-            Type * currentType = type;
-            while (currentType && currentType->getTypeID() == Type::ArrayTyID) {
-                ArrayType * arrType = static_cast<ArrayType *>(currentType);
+
+            // 收集所有维度
+            while (baseType->getTypeID() == Type::ArrayTyID) {
+                ArrayType * arrType = static_cast<ArrayType *>(baseType);
                 dimensions.push_back(arrType->getNumElements());
-                currentType = arrType->getElementType();
+                baseType = arrType->getElementType();
             }
 
-            // 使用基础元素类型
-            typeName = elementType->toString();
+            // 构建声明字符串: "declare 基本类型 @变量名[维度1][维度2]..."
+            str = "declare " + baseType->toString() + " " + getIRName();
 
-            // 构建声明字符串
-            str = "declare " + typeName + " " + getIRName();
-
-            // 添加维度信息
+            // 添加所有维度到变量名后面
             for (size_t i = 0; i < dimensions.size(); i++) {
                 str += "[" + std::to_string(dimensions[i]) + "]";
             }
         } else {
             // 非数组类型
-            str = "declare " + type->toString() + " " + getIRName() + " = 0";
+            str = "declare " + type->toString() + " " + getIRName();
+
+            // 只有非数组类型才添加初始值
+            if (!isInBSSSection()) {
+                str += " = 0";
+            }
         }
     }
 

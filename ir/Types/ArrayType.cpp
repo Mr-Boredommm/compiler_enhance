@@ -38,21 +38,20 @@ std::string ArrayType::toString() const
         // 指针类型，用于函数形参
         return elementType->toString() + "*";
     } else {
-        // 普通数组类型
-        std::string result = "[" + std::to_string(numElements) + " x ";
+        // 对于数组类型，只返回基本类型，维度信息将在变量名后面添加
+        // 例如：i32 @a[10][20]
 
-        // 递归获取元素类型
-        Type * currElemType = elementType;
-        if (currElemType->getTypeID() == Type::ArrayTyID) {
-            // 如果元素类型也是数组，则递归获取其字符串表示
-            result += currElemType->toString();
-        } else {
-            // 基本类型
-            result += currElemType->toString();
+        // 先找到最底层的元素类型
+        Type * baseType = elementType;
+
+        // 递归查找最基本的类型
+        while (baseType->getTypeID() == Type::ArrayTyID) {
+            ArrayType * arrType = static_cast<ArrayType *>(baseType);
+            baseType = arrType->getElementType();
         }
 
-        result += "]";
-        return result;
+        // 只返回基本类型
+        return baseType->toString();
     }
 }
 
